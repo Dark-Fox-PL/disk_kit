@@ -9,8 +9,7 @@ dependencies:
   flutter:
     sdk: flutter
 
-  disk_kit:
-    path: ../../disk_kit
+  disk_kit: ^0.0.1
 
 dev_dependencies:
   disk_kit_platform_interface: ^0.0.1
@@ -21,12 +20,10 @@ dev_dependencies:
 
   flutter_lints: ^5.0.0
 
-# Use the local interface package until it is published.
+# Use the macOS plugin shipped alongside this example.
 dependency_overrides:
   disk_kit_macos:
     path: ../
-  disk_kit_platform_interface:
-    path: ../../disk_kit_platform_interface
 
 flutter:
 

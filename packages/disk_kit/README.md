@@ -2,14 +2,14 @@
 
 A federated Flutter plugin for communicating with storage devices. The initial implementation supports macOS 12 or later. Windows and Linux implementations are planned for future releases.
 
-This is an experimental implementation under development; the packages are not published on pub.dev yet.
+DiskKit is an early release. Its public API may evolve. The packages are maintained under the [darkfox.pl publisher](https://pub.dev/publishers/darkfox.pl).
 
 ## Features
 
 - Discover disks, partitions, and volumes, including those already connected.
 - Read BSD identifiers, volume names, mount points, filesystem kinds, sizes, UUIDs, and device properties when available.
 - Subscribe to complete disk snapshots after discovery, removal, or description changes.
-- Mount, unmount, unmount all volumes on a disk, and eject.
+- Mount, unmount, unmount all volumes on a disk, eject, and rename volumes.
 - Copy files and directories from a mounted volume or onto it.
 - Format an external volume or an entire external disk as exFAT, FAT32, APFS, or journaled HFS+. Whole-disk formatting supports GPT or MBR; APFS requires GPT.
 
@@ -21,35 +21,36 @@ This is an experimental implementation under development; the packages are not p
 
 DiskKit does not elevate privileges or install a privileged helper. macOS permissions, disk ownership, files in use, and filesystem compatibility can cause an operation to fail.
 
-## Installation during development
+## Installation
 
-Add the local package to a Flutter app:
+```sh
+flutter pub add disk_kit
+```
+
+Or add the first release to your app's `pubspec.yaml`:
 
 ```yaml
 dependencies:
-  disk_kit:
-    path: /absolute/path/to/disk_kit/packages/disk_kit
-
-dependency_overrides:
-  disk_kit_macos:
-    path: /absolute/path/to/disk_kit/packages/disk_kit_macos
-  disk_kit_platform_interface:
-    path: /absolute/path/to/disk_kit/packages/disk_kit_platform_interface
+  disk_kit: ^0.0.1
 ```
 
-Overrides resolve the implementation packages until they are published. The macOS plugin registers automatically; import `disk_kit` in application code.
+Import `package:disk_kit/disk_kit.dart`. The macOS implementation is installed and registered automatically; applications do not need to add `disk_kit_macos` or `disk_kit_platform_interface` directly.
+
+For development before publication, clone the [workspace](https://github.com/Dark-Fox-PL/disk_kit) and run the included example. It already resolves the workspace packages locally.
 
 ## Discovery and notifications
 
 ```dart
+import 'dart:async';
+
 import 'package:disk_kit/disk_kit.dart';
 
-const kit = DiskKit();
-final disks = await kit.getDisks();
+const DiskKit kit = DiskKit();
+final List<DiskInfo> disks = await kit.getDisks();
 
-final subscription = kit.watchDisks().listen(
-  (snapshot) {
-    for (final disk in snapshot) {
+final StreamSubscription<List<DiskInfo>> subscription = kit.watchDisks().listen(
+  (List<DiskInfo> snapshot) {
+    for (final DiskInfo disk in snapshot) {
       print('${disk.id}: ${disk.volumeName} at ${disk.volumePath}');
     }
   },
@@ -71,6 +72,11 @@ On macOS IDs are BSD names such as `disk4` and `disk4s1`. They can change or be 
 Select a mounted volume from discovery, then use its ID:
 
 ```dart
+final DiskInfo volume = (await kit.getDisks()).singleWhere(
+  (DiskInfo disk) => disk.volumeName == 'TEST_USB' &&
+      disk.isMounted && disk.isInternal == false,
+);
+
 await kit.copyFromDisk(
   volume.id,
   relativePath: 'Documents',
@@ -90,9 +96,16 @@ Traversal outside the volume is rejected, including paths that resolve through a
 
 ## Mounting and formatting
 
+Use a freshly discovered target, such as the `volume` selected above. Resolve the containing whole disk separately when needed:
+
 ```dart
-await kit.unmount(volume.id);
-await kit.mount(volume.id);
+final DiskInfo wholeDisk = (await kit.getDisks()).singleWhere(
+  (DiskInfo disk) => disk.id == volume.wholeDiskId && disk.isWholeDisk == true,
+);
+
+final DiskInfo unmountedVolume = await kit.unmount(volume.id);
+final DiskInfo mountedVolume = await kit.mount(unmountedVolume.id);
+print(mountedVolume.volumePath);
 
 // Destructive: erases only this target volume's data.
 await kit.formatVolume(
@@ -117,13 +130,52 @@ Formatting is restricted to media positively identified by macOS as external. `f
 
 An exFAT label is limited to 15 UTF-16 units. The initial FAT32 label validation accepts 1–11 uppercase ASCII letters, digits, underscores, or spaces. Other format and size restrictions are enforced by macOS.
 
+## Renaming a volume
+
+```dart
+final DiskInfo renamedVolume = await kit.renameVolume(
+  volume.id,
+  volumeName: 'NEW_USB',
+);
+print(renamedVolume.volumeName);
+print(renamedVolume.volumePath);
+```
+
+Renaming preserves file contents. It accepts the same label rules as formatting. macOS may change the mount point, so use the returned description or refresh the snapshot before accessing files. The change also appears in `watchDisks()`.
+
+`mount`, `unmount`, and `renameVolume` return a `DiskInfo` describing the operated target after completion. `unmount(..., wholeDisk: true)` returns the whole-disk description; subscribe to the snapshot stream to observe its individual volumes. `eject`, copies, and formatting return `Future<void>`.
+
+## Native dependency managers
+
+The macOS package includes both a CocoaPods podspec and a Swift Package Manager manifest. SwiftPM imports `FlutterFramework` and links the system Disk Arbitration and IOKit frameworks. See the [Flutter migration guide](https://docs.flutter.dev/packages-and-plugins/swift-package-manager/for-plugin-authors) for enabling SwiftPM in an application.
+
 ## Errors
 
-Native failures arrive as `PlatformException`, with codes such as `disk_not_found`, `disk_busy`, `operation_failed`, `volume_not_mounted`, `destination_exists`, `invalid_path`, `invalid_target`, `protected_disk`, `format_failed`, or `io_failed`. Details include the native status or `diskutil` exit code when available. Unsupported platforms throw `UnsupportedError`; invalid BSD names throw `ArgumentError` before reaching native code.
+Native failures arrive as `PlatformException`. Handle its `code`, `message`, and optional native `details`:
 
-## Manual testing
+| Code | Meaning |
+| --- | --- |
+| `session_unavailable` | The native Disk Arbitration session could not be created. |
+| `discovery_failed` | Native device enumeration failed. |
+| `disk_not_found` | The target disappeared or could not be resolved. |
+| `disk_busy` | Another DiskKit operation is pending on the same whole disk. |
+| `invalid_arguments` | Required arguments, a label, filesystem, or scheme are invalid. |
+| `invalid_target` | The operation requires a different kind of disk or volume. |
+| `protected_disk` | Formatting was requested for internal or unknown media. |
+| `volume_not_mounted` | A copy request does not have a mounted volume and both paths. |
+| `invalid_path` | A path is invalid or escapes the permitted volume root. |
+| `destination_exists` | The copy destination already exists. |
+| `operation_failed` | Disk Arbitration rejected a mount, unmount, eject, or rename request. |
+| `format_failed` | `diskutil` returned a nonzero exit status. |
+| `io_failed` | A filesystem operation or process launch failed. |
 
-From the workspace root:
+Disk Arbitration errors include `operation`, `diskId`, and native `status`. Formatting failures include `exitCode`. Filesystem errors include their NSError `domain` and `status`. Unsupported platforms throw `UnsupportedError`; invalid BSD names throw `ArgumentError` before reaching native code.
+
+## Example and manual testing
+
+The interactive example is in `packages/disk_kit_macos/example` in the [GitHub repository](https://github.com/Dark-Fox-PL/disk_kit/tree/main/packages/disk_kit_macos/example). It uses the public `disk_kit` API.
+
+After cloning the repository, run from the workspace root:
 
 ```sh
 flutter pub get
@@ -131,7 +183,7 @@ cd packages/disk_kit_macos/example
 flutter run -d macos
 ```
 
-The example displays connected external devices and exposes all operations. See the [example guide](../disk_kit_macos/example/README.md) for a copy → format → restore test.
+The example displays connected external devices and exposes all operations. See the [example guide](https://github.com/Dark-Fox-PL/disk_kit/blob/main/packages/disk_kit_macos/example/README.md) for a copy → format → restore test.
 
 Source: [GitHub](https://github.com/Dark-Fox-PL/disk_kit). Bugs and proposals: [issues](https://github.com/Dark-Fox-PL/disk_kit/issues).
 

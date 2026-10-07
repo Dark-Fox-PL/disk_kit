@@ -2,7 +2,7 @@
 
 A federated Flutter plugin for communicating with storage devices through native platform APIs. The initial implementation targets macOS 12+. Windows and Linux implementations are planned for future releases.
 
-The plugin supports discovery, device properties, live notifications, mounting, unmounting, ejecting, copying files and directories in both directions, and formatting external disks or volumes. This is an experimental implementation; it has not been published on pub.dev yet.
+The plugin supports discovery, device properties, live notifications, mounting, unmounting, ejecting, renaming volumes, copying files and directories in both directions, and formatting external disks or volumes. This is an experimental implementation; it has not been published on pub.dev yet.
 
 ## Workspace
 

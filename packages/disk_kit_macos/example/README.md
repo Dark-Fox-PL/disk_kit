@@ -12,7 +12,7 @@ cd packages/disk_kit_macos/example
 flutter run -d macos
 ```
 
-Connect a USB drive. The list should update without pressing Refresh. Each whole disk has one card, with its volumes nested inside. The device header offers actions for the entire disk; each data volume has its own copy, mount, and format actions. EFI system partitions are hidden by default. Enable **Show details and system partitions** to reveal their properties and native identifiers. EFI entries are read-only in this example. Internal and unknown disks are hidden by default and can be shown with their separate toggle; operations remain available only for external media.
+Connect a USB drive. The list should update without pressing Refresh. Each whole disk has one card, with its volumes nested inside. The device header offers actions for the entire disk; each data volume has its own copy, mount, rename, and format actions. EFI system partitions are hidden by default. Enable **Show details and system partitions** to reveal their properties and native identifiers. EFI entries are read-only in this example. Internal and unknown disks are hidden by default and can be shown with their separate toggle; operations remain available only for external media.
 
 ## Copy → format → restore
 
@@ -57,7 +57,7 @@ flutter test integration_test/plugin_integration_test.dart -d macos \
   '--dart-define=DISK_KIT_TEST_VOLUME_NAME=TEST_USB'
 ```
 
-This creates a unique test directory on that volume, copies text and binary files in both directions, compares their contents, and removes its test directory. Existing data is preserved. Adding `--dart-define=DISK_KIT_TEST_MOUNT_CYCLE=true` also tests an unmount/remount cycle and the corresponding stream update. Close files on that volume before the mount-cycle test.
+This creates a unique test directory on that volume, copies text and binary files in both directions, compares their contents, and removes its test directory. Existing data is preserved. Adding `--dart-define=DISK_KIT_TEST_MOUNT_CYCLE=true` also tests an unmount/remount cycle, its returned `DiskInfo` values, and the corresponding stream update. Adding `--dart-define=DISK_KIT_TEST_RENAME=true` tests a rename, verifies the updated metadata and preserved test file, then restores the original label. Close files on that volume before the mount-cycle test.
 
 ## Destructive format integration test
 
@@ -72,3 +72,26 @@ flutter test integration_test/formatting_integration_test.dart -d macos \
 ```
 
 The test requires exactly one mounted external volume matching the name and a whole device using the USB protocol. It removes its generated files after successful verification. FAT32 and exFAT are exercised on hardware; APFS and HFS+ formatting parameters are covered by native argument-validation tests.
+
+## Rename a volume
+
+Choose **Rename…** on a data volume, enter its new label, and confirm. The displayed name and mount point update from the native snapshots. File contents are preserved. Refresh any filesystem paths you keep after renaming.
+
+## Swift Package Manager verification
+
+The plugin has a SwiftPM manifest as well as its CocoaPods podspec. To test SwiftPM on a recent Flutter SDK without changing your global Flutter configuration, temporarily add the following application setting to this example's `pubspec.yaml`:
+
+```yaml
+flutter:
+  config:
+    enable-swift-package-manager: true
+  uses-material-design: true
+```
+
+Then run `flutter test integration_test/plugin_integration_test.dart -d macos`. Flutter adds SwiftPM integration to the example's Xcode project. The generated `macos/Flutter/ephemeral/Packages/FlutterGeneratedPluginSwiftPackage/Package.swift` should reference the `disk-kit-macos` product. This verifies that the plugin is built through SwiftPM rather than only checking that its manifest exists.
+
+The setting belongs to the application, not to a plugin dependency. Existing CocoaPods integration can remain while testing the SwiftPM plugin. See the [Flutter app migration guide](https://docs.flutter.dev/packages-and-plugins/swift-package-manager/for-app-developers) for the full application migration.
+
+## Local workspace dependencies
+
+The example's normal pubspec depends on the published `disk_kit` package and overrides the macOS implementation with the adjacent plugin directory. In a GitHub checkout, `pubspec_overrides.yaml` also resolves the public package and interface from their workspace directories. This local override file is excluded from the pub.dev archive, so the published example does not depend on sibling packages outside that archive. Run the published example after all three DiskKit packages have been released.
