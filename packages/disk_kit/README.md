@@ -34,7 +34,7 @@ Or add the package to your app's `pubspec.yaml`:
 
 ```yaml
 dependencies:
-  disk_kit: ^1.0.1
+  disk_kit: ^1.0.2
 ```
 
 Import `package:disk_kit/disk_kit.dart`. The macOS implementation is installed and registered automatically; applications do not need to add `disk_kit_macos` or `disk_kit_platform_interface` directly.

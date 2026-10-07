@@ -1,4 +1,4 @@
-## Unreleased
+## 1.0.2
 
 - Show readable filesystem names in both examples, including HFS+ (Mac OS Extended, Journaled).
 - Add an explicit HFS+ formatting example to the README; the existing API remains unchanged.
