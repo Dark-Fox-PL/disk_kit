@@ -1,3 +1,9 @@
+/// Native disk discovery, notifications, copying, formatting, and volume operations.
+///
+/// Use [DiskKit] to access the registered platform implementation. [DiskInfo]
+/// describes disks and volumes returned by discovery and completed operations.
+library;
+
 import 'package:disk_kit_platform_interface/disk_kit_platform_interface.dart';
 
 export 'package:disk_kit_platform_interface/disk_kit_platform_interface.dart'
