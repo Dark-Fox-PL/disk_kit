@@ -1,0 +1,22 @@
+PODS:
+  - disk_kit_macos (0.0.1):
+    - FlutterMacOS
+  - FlutterMacOS (1.0.0)
+
+DEPENDENCIES:
+  - disk_kit_macos (from `Flutter/ephemeral/.symlinks/plugins/disk_kit_macos/macos`)
+  - FlutterMacOS (from `Flutter/ephemeral`)
+
+EXTERNAL SOURCES:
+  disk_kit_macos:
+    :path: Flutter/ephemeral/.symlinks/plugins/disk_kit_macos/macos
+  FlutterMacOS:
+    :path: Flutter/ephemeral
+
+SPEC CHECKSUMS:
+  disk_kit_macos: 90d935a432e4406cf10348f65b5b7bad53a38f85
+  FlutterMacOS: c232990155153907050900a2e175c7773903ba4e
+
+PODFILE CHECKSUM: 1e95c36afbfd1cb6423ceca4de7a8e1b256fb6ac
+
+COCOAPODS: 1.16.2

@@ -1,0 +1,30 @@
+# Local workspace configuration
+**/pubspec_overrides.yaml
+**/pubspec.lock
+
+# Generated Dart, Flutter, CocoaPods, and SwiftPM artifacts
+**/.dart_tool/
+**/build/
+**/coverage/
+**/doc/api/
+**/.flutter-plugins
+**/.flutter-plugins-dependencies
+**/Pods/
+**/.symlinks/
+**/ephemeral/
+**/.build/
+**/.swiftpm/
+**/DerivedData/
+**/xcuserdata/
+
+# IDE and operating system files
+**/.idea/
+**/*.iml
+**/*.ipr
+**/*.iws
+**/.DS_Store
+**/*.log
+**/*.class
+**/*.pyc
+**/*.swp
+**/.metadata

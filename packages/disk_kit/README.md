@@ -173,17 +173,17 @@ Disk Arbitration errors include `operation`, `diskId`, and native `status`. Form
 
 ## Example and manual testing
 
-The interactive example is in `packages/disk_kit_macos/example` in the [GitHub repository](https://github.com/Dark-Fox-PL/disk_kit/tree/main/packages/disk_kit_macos/example). It uses the public `disk_kit` API.
+The interactive example is in `packages/disk_kit/example` in the [GitHub repository](https://github.com/Dark-Fox-PL/disk_kit/tree/main/packages/disk_kit/example). It uses the public `disk_kit` API.
 
 After cloning the repository, run from the workspace root:
 
 ```sh
 flutter pub get
-cd packages/disk_kit_macos/example
+cd packages/disk_kit/example
 flutter run -d macos
 ```
 
-The example displays connected external devices and exposes all operations. See the [example guide](https://github.com/Dark-Fox-PL/disk_kit/blob/main/packages/disk_kit_macos/example/README.md) for a copy → format → restore test.
+The example displays connected external devices and exposes all operations. See the [example guide](https://github.com/Dark-Fox-PL/disk_kit/blob/main/packages/disk_kit/example/README.md) for a copy → format → restore test.
 
 Source: [GitHub](https://github.com/Dark-Fox-PL/disk_kit). Bugs and proposals: [issues](https://github.com/Dark-Fox-PL/disk_kit/issues).
 

@@ -16,11 +16,11 @@ Requires Flutter 3.27+, Dart 3.6+, and Xcode for macOS development. The initial 
 
 ```sh
 flutter pub get
-cd packages/disk_kit_macos/example
+cd packages/disk_kit/example
 flutter run -d macos
 ```
 
-Connect a USB drive and use the example to inspect devices and test operations. See the [API documentation](packages/disk_kit/README.md) and [manual testing guide](packages/disk_kit_macos/example/README.md), including copying data off a USB drive, formatting it, and copying the data back.
+Connect a USB drive and use the example to inspect devices and test operations. See the [API documentation](packages/disk_kit/README.md) and [manual testing guide](packages/disk_kit/example/README.md), including copying data off a USB drive, formatting it, and copying the data back.
 
 ## Checks
 
