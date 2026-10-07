@@ -1,5 +1,5 @@
 PODS:
-  - disk_kit_macos (0.0.1):
+  - disk_kit_macos (1.0.0):
     - FlutterMacOS
   - FlutterMacOS (1.0.0)
 
@@ -14,7 +14,7 @@ EXTERNAL SOURCES:
     :path: Flutter/ephemeral
 
 SPEC CHECKSUMS:
-  disk_kit_macos: 90d935a432e4406cf10348f65b5b7bad53a38f85
+  disk_kit_macos: 1b0827cbceee32e2a232e275ef72a0bdf68ed09d
   FlutterMacOS: c232990155153907050900a2e175c7773903ba4e
 
 PODFILE CHECKSUM: 1e95c36afbfd1cb6423ceca4de7a8e1b256fb6ac

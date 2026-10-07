@@ -4,11 +4,21 @@ macOS implementation of the federated DiskKit Flutter plugin. Applications shoul
 
 The plugin uses Disk Arbitration for descriptions, notifications, mounting, unmounting, and ejecting. IOKit enumerates existing IOMedia objects for initial discovery. `FileManager` copies files and directories on a serial background queue. `/usr/sbin/diskutil` performs formatting using explicit process arguments without a shell.
 
-Requires macOS 12+, Flutter 3.27+, and Dart 3.6+. The first version requires an application outside App Sandbox and does not elevate privileges. Formatting is limited to media identified as external. Operating system restrictions are returned as structured errors.
+Requires macOS 12+, Flutter 3.27+, and Dart 3.6+. The plugin requires an application outside App Sandbox. Raw image writing and macOS installer preparation can request administrator authorization through system dialogs; other operations use the host privileges. No persistent privileged helper is installed. Formatting is limited to media identified as external. Operating system restrictions are returned as structured errors.
 
 The native and Dart method/event channels are `eu.byfox.disk_kit/methods` and `eu.byfox.disk_kit/disks`. Native requests targeting the same containing whole disk are rejected while another DiskKit operation on it is pending.
 
 See the [public API guide](https://github.com/Dark-Fox-PL/disk_kit/blob/main/packages/disk_kit/README.md) and the [example testing guide](https://github.com/Dark-Fox-PL/disk_kit/blob/main/packages/disk_kit_macos/example/README.md).
+
+## Installation media
+
+`writeImage` writes uncompressed IMG/hybrid ISO to a raw external whole disk, unmounting and claiming it through Disk Arbitration. A mount approval callback blocks remounting while it writes. Raw writing and read-back verification stream through native file descriptors. When access requires authorization, Authorization Services and `authopen` transfer only an existing device descriptor over a Unix socket. There is no separate privileged raw writer. Fresh IOKit registry IDs identify the current attachment.
+
+`createWindowsInstaller` mounts ISO read-only through `hdiutil`, preflights the file tree, optionally splits an oversized installation WIM with caller-installed `wimlib-imagex`, and copies to MBR/FAT32 for UEFI. Ordinary copies are verified byte-for-byte when requested. Legacy BIOS and oversized ESD are unsupported.
+
+`createMacOSInstaller` requires a full Apple installer app, verifies Apple signatures, and uses `createinstallmedia` with administrator authorization through AppleScript. Its phase telemetry uses an exclusively created root-owned temporary directory. It does not accept macOS ISO/DMG containers. The authorization prompt precedes formatting. Apple's tool has indeterminate progress and controls validation.
+
+Progress is sent as `mediaProgress` callbacks on the existing method channel, correlated by an operation ID. No password is passed through Dart. See the public API guide for supported sources and limitations.
 
 ## Development
 
@@ -20,6 +30,6 @@ Publisher: [darkfox.pl](https://pub.dev/publishers/darkfox.pl).
 
 ## Native dependency managers
 
-The package supports CocoaPods and Swift Package Manager. Its SwiftPM product is `disk-kit-macos`; the target imports `FlutterFramework` and links Disk Arbitration and IOKit. Current SwiftPM builds and native channel tests were verified using Flutter 3.47.5. CocoaPods remains available for applications using older supported Flutter versions.
+The package supports CocoaPods and Swift Package Manager. Its SwiftPM product is `disk-kit-macos`; the target imports `FlutterFramework` and links Disk Arbitration, IOKit, and Security. Current SwiftPM builds and native channel tests were verified using Flutter 3.47.5. CocoaPods remains available for applications using older supported Flutter versions.
 
 The manifest follows the [official Flutter plugin guide](https://docs.flutter.dev/packages-and-plugins/swift-package-manager/for-plugin-authors). Flutter generates the `FlutterFramework` dependency while integrating the consuming application; running `swift build` directly inside the published plugin is not the application integration test.

@@ -95,3 +95,25 @@ The setting belongs to the application, not to a plugin dependency. Existing Coc
 ## Local workspace dependencies
 
 The example's normal pubspec depends on the published `disk_kit` package and overrides the macOS implementation with the adjacent plugin directory. In a GitHub checkout, `pubspec_overrides.yaml` also resolves the public package and interface from their workspace directories. This local override file is excluded from the pub.dev archive, so the published example does not depend on sibling packages outside that archive. Run the published example after all three DiskKit packages have been released.
+
+## Images and installation media
+
+In the whole-device header choose **Write image / installer…**. Select one mode:
+
+- **Raw IMG / hybrid ISO**: choose an absolute uncompressed image path, for example an Ubuntu hybrid ISO. Keep verification enabled.
+- **Windows ISO → UEFI installer**: choose a genuine Windows ISO. If its `install.wim` exceeds FAT32's limit, install wimlib (`brew install wimlib`) or enter its absolute executable path. Splitting requires temporary free space on the Mac and runs before erasure. Oversized ESD is unsupported; legacy BIOS is not configured.
+- **Install macOS .app → Mac installer**: choose a complete installer app downloaded from Apple. ISO/DMG files are not accepted. Installer/host/destination Mac compatibility still applies.
+
+Keep the source on another disk. Type the displayed `ERASE disk…` phrase and select **Erase and write**. Raw writing and macOS mode may open the system administrator dialog; DiskKit does not collect the password. If raw access reports `permission_denied`, check the example app’s Files and Folders / Full Disk Access permission under macOS Privacy & Security and restart the app. Administrator authorization alone does not override privacy restrictions. Progress switches between measurable stages and indeterminate stages. Failed writing leaves partially prepared media; do not remove the USB during the operation. On completion, eject safely and test booting on a computer compatible with the selected OS image. An Intel Ubuntu/Windows image does not become bootable on an Apple Silicon Mac by writing it here.
+
+The opt-in physical test uses synthetic fixtures, **not OS installers**, and restores the drive to exFAT with its original volume name. It verifies raw read-back, preflight rejection, Windows FAT32 layout, copied data, and progress. It does not prove bootability. It erases all original contents and may display an administrator prompt:
+
+```sh
+flutter test integration_test/media_integration_test.dart -d macos \
+  '--dart-define=DISK_KIT_TEST_VOLUME_NAME=TEST_USB' \
+  --dart-define=DISK_KIT_ERASE_TEST_DRIVE=true
+```
+
+Replace `TEST_USB` with the intended volume name. Keep that device attached throughout. Full end-to-end boot tests require genuine Ubuntu/Windows ISO files, a complete Apple installer, and compatible destination hardware.
+
+To exercise only the Windows layout/copy portion when raw-device access is unavailable, add `--dart-define=DISK_KIT_TEST_RAW_IMAGE=false`. This is still destructive and still restores exFAT; it does not test raw writes.

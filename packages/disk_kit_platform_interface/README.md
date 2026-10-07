@@ -11,3 +11,7 @@ See the [public API guide](https://github.com/Dark-Fox-PL/disk_kit/blob/main/pac
 [Source and issues](https://github.com/Dark-Fox-PL/disk_kit). Distributed under the [MIT License](LICENSE).
 
 Publisher: [darkfox.pl](https://pub.dev/publishers/darkfox.pl).
+
+## Installation media contract
+
+The interface includes `writeImage`, `createWindowsInstaller`, and `createMacOSInstaller`, each returning `Future<void>`. Optional `MediaProgressCallback` receives typed `MediaOperationProgress` with a `MediaOperationStage` and nullable stage byte counters. Existing platform implementations inherit unsupported defaults for these methods. Callers must confirm whole-disk erasure; boot compatibility depends on the source and destination computer.

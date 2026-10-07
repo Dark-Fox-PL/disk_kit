@@ -2,7 +2,7 @@
 
 A federated Flutter plugin for communicating with storage devices. The initial implementation supports macOS 12 or later. Windows and Linux implementations are planned for future releases.
 
-DiskKit is an early release. Its public API may evolve. The packages are maintained under the [darkfox.pl publisher](https://pub.dev/publishers/darkfox.pl).
+DiskKit 1.0 provides disk operations and installation-media preparation. The packages are maintained under the [darkfox.pl publisher](https://pub.dev/publishers/darkfox.pl).
 
 ## Features
 
@@ -11,6 +11,9 @@ DiskKit is an early release. Its public API may evolve. The packages are maintai
 - Subscribe to complete disk snapshots after discovery, removal, or description changes.
 - Mount, unmount, unmount all volumes on a disk, eject, and rename volumes.
 - Copy files and directories from a mounted volume or onto it.
+- Write uncompressed IMG / USB-compatible hybrid ISO images, with optional read-back verification.
+- Create Windows UEFI installers from ISO, including oversized WIM splitting through caller-installed wimlib.
+- Create macOS installation media from a complete Apple installer app.
 - Format an external volume or an entire external disk as exFAT, FAT32, APFS, or journaled HFS+. Whole-disk formatting supports GPT or MBR; APFS requires GPT.
 
 ## Requirements
@@ -19,7 +22,7 @@ DiskKit is an early release. Its public API may evolve. The packages are maintai
 - macOS 12 or later, with Xcode installed for development.
 - An application running outside App Sandbox for this initial implementation. The included example disables App Sandbox in both debug and release entitlements.
 
-DiskKit does not elevate privileges or install a privileged helper. macOS permissions, disk ownership, files in use, and filesystem compatibility can cause an operation to fail.
+Raw-image writing and macOS installer preparation can request administrator authorization through system dialogs (`allowElevation: true`, the default). DiskKit never collects passwords and does not install a persistent privileged helper. Raw disk access can additionally require the host app to have Files and Folders / Full Disk Access permission in macOS Privacy & Security settings, even after administrator authorization. DiskKit cannot grant that permission; restart the app after changing it. See [Apple’s file access documentation](https://developer.apple.com/documentation/security/accessing-files-from-the-macos-app-sandbox). Other operations retain the application’s current privileges. macOS permissions, disk ownership, files in use, and filesystem compatibility can cause failures.
 
 ## Installation
 
@@ -31,7 +34,7 @@ Or add the package to your app's `pubspec.yaml`:
 
 ```yaml
 dependencies:
-  disk_kit: ^0.0.2
+  disk_kit: ^1.0.0
 ```
 
 Import `package:disk_kit/disk_kit.dart`. The macOS implementation is installed and registered automatically; applications do not need to add `disk_kit_macos` or `disk_kit_platform_interface` directly.
@@ -92,7 +95,7 @@ await kit.copyToDisk(
 
 Local paths must be absolute; volume paths must be relative to the volume's mount point. The destination must not exist and its parent directory must exist. Directory copies are recursive. `.` selects the volume root; protected system metadata may prevent copying an entire root. Prefer explicitly selected user directories.
 
-Traversal outside the volume is rejected, including paths that resolve through a symlink to outside it. Symlinks inside copied directories are preserved. Copying between filesystems may fail for unsupported names, large files, symlinks, or metadata. A failed copy can leave partial destination data. The first version has no progress reporting, cancellation, checksum verification, merging, or overwriting.
+Traversal outside the volume is rejected, including paths that resolve through a symlink to outside it. Symlinks inside copied directories are preserved. Copying between filesystems may fail for unsupported names, large files, symlinks, or metadata. A failed copy can leave partial destination data. These ordinary file-copy methods have no progress reporting, cancellation, checksum verification, merging, or overwriting. Media operations below have their own progress and verification options.
 
 ## Mounting and formatting
 
@@ -145,9 +148,73 @@ Renaming preserves file contents. It accepts the same label rules as formatting.
 
 `mount`, `unmount`, and `renameVolume` return a `DiskInfo` describing the operated target after completion. `unmount(..., wholeDisk: true)` returns the whole-disk description; subscribe to the snapshot stream to observe its individual volumes. `eject`, copies, and formatting return `Future<void>`.
 
+## Images and installation media
+
+All three operations below erase **every partition and file** on an external whole disk. Confirm deletion in your application and select a freshly discovered `DiskInfo` with `isWholeDisk == true`, `isInternal == false`, and `isWritable == true`. Keep the source and required tools on another disk. There is no cancellation, automatic backup, or rollback; failures can leave partially written media.
+
+| Method | Source | Prepared media |
+| --- | --- | --- |
+| `writeImage` | Uncompressed `.img` or hybrid `.iso` | Exact image bytes, including its partition layout; suitable for Ubuntu hybrid ISOs. |
+| `createWindowsInstaller` | Windows setup `.iso` | MBR + FAT32, files copied for **UEFI** boot. Legacy BIOS is unsupported. |
+| `createMacOSInstaller` | Full Apple `Install macOS … .app` | GPT + journaled HFS+, then Apple's `createinstallmedia`. ISO/DMG containers are not accepted. |
+
+```dart
+void reportProgress(MediaOperationProgress progress) {
+  print('${progress.diskId}: ${progress.stage.name} ${progress.fraction}');
+}
+
+// The application has already obtained explicit permission to erase wholeDisk.
+await kit.writeImage(
+  wholeDisk.id,
+  imagePath: '/Users/you/Downloads/ubuntu.iso',
+  verify: true,
+  onProgress: reportProgress,
+);
+
+// Alternative operation, also destructive:
+await kit.createWindowsInstaller(
+  wholeDisk.id,
+  isoPath: '/Users/you/Downloads/windows.iso',
+  // Optional; otherwise checks the usual Apple Silicon / Intel Homebrew paths.
+  wimlibPath: '/opt/homebrew/bin/wimlib-imagex',
+  onProgress: reportProgress,
+);
+
+// Alternative operation, also destructive:
+await kit.createMacOSInstaller(
+  wholeDisk.id,
+  installerAppPath: '/Applications/Install macOS Sequoia.app',
+  onProgress: reportProgress,
+);
+```
+
+These are alternatives, not a sequence to run on the same USB drive. Rediscover target IDs between separate operations; partition IDs and mount points can change.
+
+### Raw images / Ubuntu
+
+`writeImage` writes to the raw device, rather than storing the image as a file. Images must fit the disk and have a size divisible by 512 bytes. ISO preflight requires an MBR partition signature or GPT header and rejects ordinary optical-only ISOs before unmounting. This structural check does not guarantee bootability. Ubuntu publishes USB-compatible hybrid ISOs; choose an architecture supported by the destination computer. See [Ubuntu's USB guide](https://documentation.ubuntu.com/desktop/en/latest/how-to/create-a-bootable-usb-stick/).
+
+Disk Arbitration unmounts all volumes without force, claims the disk, and blocks mounting during writing. Writing and read-back use native file descriptors with device identity checked again after authorization. When necessary, `authopen` obtains read/write access to the existing raw device and transfers only that descriptor to the app over a Unix socket. No privileged raw writer continues after the app closes. `allowElevation: false` uses current raw-device privileges. `verify: true` compares the image-length destination bytes; trailing disk capacity is not verified or securely erased. Source authenticity and publisher checksums are the application's responsibility. Disconnect/reconnect the drive after writing if macOS has not refreshed the new partition layout; macOS cannot mount every Linux filesystem.
+
+### Windows
+
+A genuine Windows setup ISO must contain `sources/boot.wim`, installation WIM/ESD/SWM files, and a recognized EFI bootloader. The plugin mounts the ISO read-only, checks FAT32 filename and size compatibility, then copies into a freshly formatted MBR/FAT32 volume. Target boot architecture and Secure Boot trust depend on the chosen ISO and destination firmware. See [Microsoft's USB preparation guide](https://learn.microsoft.com/en-us/windows-hardware/manufacture/desktop/install-windows-from-a-usb-flash-drive?view=windows-11).
+
+FAT32's maximum file size is 4,294,967,295 bytes. Oversized `sources/install.wim` is split into `install.swm`, `install2.swm`, etc. using **wimlib-imagex**, which the consuming application/user must install or supply; DiskKit does not download it. Typical developer setup: `brew install wimlib`. Custom `wimlibPath` executables are run with the application's privileges, never as administrator. Splitting happens **before disk erasure** and requires temporary free space on the Mac. A WIM resource too large to split below FAT32's limit is rejected. Oversized ESD and other oversized files are rejected before erasure.
+
+Verification compares all copied files byte-for-byte. For a split WIM it additionally runs `wimlib-imagex verify` against the temporary parts before erasure, then compares each copied part. This verifies data, not a real boot or Windows installation. See [wimlib](https://github.com/ebiggers/wimlib).
+
+### macOS
+
+Download a complete compatible installer from Apple. DiskKit checks the Apple signatures of the installer and its `createinstallmedia` executable; the elevated path repeats these checks after authorization and before erasure. A cancelled administrator dialog does not start formatting. Apple's tool controls installer validation and copying. It may still reject an incomplete installer or incompatible host after preparation has started. No separate byte-for-byte verification is exposed for this mode. See [Apple's installer guide](https://support.apple.com/en-ie/101578).
+
+### Progress
+
+`onProgress` receives `MediaOperationProgress` until the returned `Future<void>` completes. `stage` is a `MediaOperationStage`; `bytesCompleted` and `totalBytes` are nullable. `fraction` describes the **current stage**, not the whole workflow. Show an indeterminate indicator when it is null. Raw writing and read-back verification report byte counts. WIM splitting, authorization, formatting, and Apple's tool have indeterminate stages. Windows file copying and verification report byte counts. A callback error is reported to Flutter without interrupting the native operation. Handle the future's exception to display failure; successful operations end with `completed`.
+
 ## Native dependency managers
 
-The macOS package includes both a CocoaPods podspec and a Swift Package Manager manifest. SwiftPM imports `FlutterFramework` and links the system Disk Arbitration and IOKit frameworks. See the [Flutter migration guide](https://docs.flutter.dev/packages-and-plugins/swift-package-manager/for-plugin-authors) for enabling SwiftPM in an application.
+The macOS package includes both a CocoaPods podspec and a Swift Package Manager manifest. SwiftPM imports `FlutterFramework` and links the system Disk Arbitration, IOKit, and Security frameworks. See the [Flutter migration guide](https://docs.flutter.dev/packages-and-plugins/swift-package-manager/for-plugin-authors) for enabling SwiftPM in an application.
 
 ## Errors
 
@@ -161,12 +228,23 @@ Native failures arrive as `PlatformException`. Handle its `code`, `message`, and
 | `disk_busy` | Another DiskKit operation is pending on the same whole disk. |
 | `invalid_arguments` | Required arguments, a label, filesystem, or scheme are invalid. |
 | `invalid_target` | The operation requires a different kind of disk or volume. |
-| `protected_disk` | Formatting was requested for internal or unknown media. |
+| `protected_disk` | A destructive operation targeted internal, unknown, or unsupported virtual media. |
 | `volume_not_mounted` | A copy request does not have a mounted volume and both paths. |
 | `invalid_path` | A path is invalid or escapes the permitted volume root. |
 | `destination_exists` | The copy destination already exists. |
 | `operation_failed` | Disk Arbitration rejected a mount, unmount, eject, or rename request. |
 | `format_failed` | `diskutil` returned a nonzero exit status. |
+| `unsupported_image` | Source type, disk layout, installer signature, or Windows ISO contents are unsupported. |
+| `image_too_large` | Installation files and filesystem overhead do not fit. |
+| `source_on_target` | The source or a supplied tool is on the disk being erased. |
+| `source_changed` | The source changed during preparation or writing. |
+| `target_changed` | The original device was detached or replaced. |
+| `permission_denied` | Raw access was denied by macOS privacy/permissions, or elevation is disabled without adequate privileges. |
+| `authorization_cancelled` | The system administrator dialog was cancelled. |
+| `dependency_missing` | Required wimlib-imagex is unavailable. |
+| `split_failed` | WIM splitting failed or a part exceeds FAT32's limit. |
+| `verification_failed` | Read-back comparison or split-WIM integrity verification failed. |
+| `media_failed` | A media preparation tool failed; inspect message and details. |
 | `io_failed` | A filesystem operation or process launch failed. |
 
 Disk Arbitration errors include `operation`, `diskId`, and native `status`. Formatting failures include `exitCode`. Filesystem errors include their NSError `domain` and `status`. Unsupported platforms throw `UnsupportedError`; invalid BSD names throw `ArgumentError` before reaching native code.

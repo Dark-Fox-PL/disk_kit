@@ -9,10 +9,10 @@ dependencies:
   flutter:
     sdk: flutter
 
-  disk_kit: ^0.0.1
+  disk_kit: ^1.0.0
 
 dev_dependencies:
-  disk_kit_platform_interface: ^0.0.1
+  disk_kit_platform_interface: ^1.0.0
   integration_test:
     sdk: flutter
   flutter_test:

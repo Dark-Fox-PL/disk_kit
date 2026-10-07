@@ -31,6 +31,9 @@ class _DiskKitExampleState extends State<DiskKitExample> {
   final _localPath = TextEditingController();
   final _volumeName = TextEditingController();
   final _confirmation = TextEditingController();
+  final _imagePath = TextEditingController();
+  final _wimlibPath = TextEditingController();
+  MediaOperationProgress? _mediaProgress;
   late final StreamSubscription<List<DiskInfo>> _subscription;
   List<DiskInfo> _disks = [];
   String? _error;
@@ -68,6 +71,8 @@ class _DiskKitExampleState extends State<DiskKitExample> {
     _localPath.dispose();
     _volumeName.dispose();
     _confirmation.dispose();
+    _imagePath.dispose();
+    _wimlibPath.dispose();
     super.dispose();
   }
 
@@ -92,7 +97,10 @@ class _DiskKitExampleState extends State<DiskKitExample> {
   }
 
   Future<void> _run(String label, Future<void> Function() operation) async {
-    setState(() => _running = true);
+    setState(() {
+      _running = true;
+      _mediaProgress = null;
+    });
     try {
       await operation();
       if (mounted) {
@@ -113,7 +121,10 @@ class _DiskKitExampleState extends State<DiskKitExample> {
       }
     } finally {
       if (mounted) {
-        setState(() => _running = false);
+        setState(() {
+          _running = false;
+          _mediaProgress = null;
+        });
         await _refresh();
       }
     }
@@ -183,6 +194,136 @@ class _DiskKitExampleState extends State<DiskKitExample> {
               relativePath: relativePath,
             ),
     );
+  }
+
+  Future<void> _prepareMedia(DiskInfo disk) async {
+    final image = _imagePath..clear();
+    final wimlib = _wimlibPath..clear();
+    final confirmation = _confirmation..clear();
+    var mode = 'raw';
+    var verify = true;
+    var elevate = true;
+    final expected = 'ERASE ${disk.id}';
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => StatefulBuilder(
+        builder: (context, update) => AlertDialog(
+          title: const Text('Create installation media'),
+          content: SizedBox(
+            width: 560,
+            child: SingleChildScrollView(
+                child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('${disk.name ?? disk.id} · ${_size(disk.sizeBytes)}\n'
+                    '${disk.devicePath}\nAll partitions and files will be erased.'),
+                const SizedBox(height: 16),
+                DropdownButton<String>(
+                  value: mode,
+                  isExpanded: true,
+                  items: const [
+                    DropdownMenuItem(
+                        value: 'raw',
+                        child: Text('Raw IMG / hybrid ISO (e.g. Ubuntu)')),
+                    DropdownMenuItem(
+                        value: 'windows',
+                        child: Text('Windows ISO → UEFI installer')),
+                    DropdownMenuItem(
+                        value: 'macos',
+                        child: Text('Install macOS .app → Mac installer')),
+                  ],
+                  onChanged: (value) => update(() => mode = value!),
+                ),
+                Text(mode == 'raw'
+                    ? 'Use an uncompressed IMG or USB-compatible hybrid ISO. Ordinary Windows ISOs use the Windows mode.'
+                    : mode == 'windows'
+                        ? 'Creates MBR/FAT32 for UEFI; legacy BIOS is unsupported. Large install.wim needs wimlib and local temporary space. Large install.esd is unsupported.'
+                        : 'Requires a full Apple installer app and administrator permission. The selected macOS version must support the host and destination Mac.'),
+                TextField(
+                  controller: image,
+                  onChanged: (_) => update(() {}),
+                  decoration: InputDecoration(
+                    labelText: mode == 'macos'
+                        ? 'Absolute installer app path'
+                        : 'Absolute image path',
+                    hintText: mode == 'macos'
+                        ? '/Applications/Install macOS Sequoia.app'
+                        : '/Users/you/Downloads/installer.iso',
+                  ),
+                ),
+                if (mode == 'windows')
+                  TextField(
+                    controller: wimlib,
+                    decoration: const InputDecoration(
+                      labelText: 'Optional absolute wimlib-imagex path',
+                      hintText: '/opt/homebrew/bin/wimlib-imagex',
+                    ),
+                  ),
+                if (mode != 'macos')
+                  CheckboxListTile(
+                    contentPadding: EdgeInsets.zero,
+                    title: const Text('Verify written data'),
+                    value: verify,
+                    onChanged: (value) => update(() => verify = value!),
+                  ),
+                if (mode != 'windows')
+                  CheckboxListTile(
+                    contentPadding: EdgeInsets.zero,
+                    title: const Text('Allow system administrator prompt'),
+                    value: elevate,
+                    onChanged: (value) => update(() => elevate = value!),
+                  ),
+                const Text(
+                    'Keep the source on another disk. A failure can leave partially written media. Do not disconnect the USB drive during writing. Boot compatibility depends on the image and destination computer.'),
+                TextField(
+                  controller: confirmation,
+                  onChanged: (_) => update(() {}),
+                  decoration:
+                      InputDecoration(labelText: 'Type $expected to confirm'),
+                ),
+              ],
+            )),
+          ),
+          actions: [
+            TextButton(
+                onPressed: () => Navigator.pop(context, false),
+                child: const Text('Cancel')),
+            FilledButton(
+              onPressed:
+                  confirmation.text == expected && image.text.trim().isNotEmpty
+                      ? () => Navigator.pop(context, true)
+                      : null,
+              child: const Text('Erase and write'),
+            ),
+          ],
+        ),
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+    void progress(MediaOperationProgress update) {
+      if (mounted) setState(() => _mediaProgress = update);
+    }
+
+    await _run(
+        'Installation media',
+        () => switch (mode) {
+              'windows' => _kit.createWindowsInstaller(disk.id,
+                  isoPath: image.text.trim(),
+                  wimlibPath:
+                      wimlib.text.trim().isEmpty ? null : wimlib.text.trim(),
+                  verify: verify,
+                  onProgress: progress),
+              'macos' => _kit.createMacOSInstaller(disk.id,
+                  installerAppPath: image.text.trim(),
+                  allowElevation: elevate,
+                  onProgress: progress),
+              _ => _kit.writeImage(disk.id,
+                  imagePath: image.text.trim(),
+                  verify: verify,
+                  allowElevation: elevate,
+                  onProgress: progress),
+            });
   }
 
   Future<void> _rename(DiskInfo disk) async {
@@ -449,6 +590,11 @@ class _DiskKitExampleState extends State<DiskKitExample> {
                             ? null
                             : () => _run('Eject', () => _kit.eject(whole.id)),
                         child: const Text('Eject')),
+                    OutlinedButton(
+                        onPressed: _running || whole.isWritable != true
+                            ? null
+                            : () => _prepareMedia(whole),
+                        child: const Text('Write image / installer…')),
                     FilledButton(
                         onPressed: _running ? null : () => _format(whole),
                         child: const Text('Format disk…')),
@@ -495,7 +641,14 @@ class _DiskKitExampleState extends State<DiskKitExample> {
             title: const Text('Show details and system partitions'),
             value: _showDetails,
             onChanged: (value) => setState(() => _showDetails = value)),
-        if (_running) const LinearProgressIndicator(),
+        if (_running) LinearProgressIndicator(value: _mediaProgress?.fraction),
+        if (_running && _mediaProgress != null)
+          Padding(
+            padding: const EdgeInsets.all(12),
+            child: Text(
+                '${_mediaProgress!.diskId} · ${_mediaProgress!.stage.name}'
+                '${_mediaProgress!.fraction == null ? "" : " · ${(_mediaProgress!.fraction! * 100).toStringAsFixed(1)}%"}'),
+          ),
         if (_error != null)
           Padding(padding: const EdgeInsets.all(16), child: Text(_error!)),
         if (_loading) const CircularProgressIndicator(),
