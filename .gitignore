@@ -1,0 +1,20 @@
+# Dart and Flutter generated files
+.dart_tool/
+.flutter-plugins
+.flutter-plugins-dependencies
+build/
+coverage/
+doc/api/
+
+# IDE and operating system files
+.idea/
+*.iml
+*.ipr
+*.iws
+.DS_Store
+*.log
+
+# Local configuration
+.env
+.env.*
+!.env.example

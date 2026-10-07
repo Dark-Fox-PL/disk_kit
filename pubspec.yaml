@@ -1,0 +1,11 @@
+name: disk_kit_workspace
+description: Workspace for the DiskKit Flutter packages.
+publish_to: none
+
+environment:
+  sdk: ^3.6.0
+
+workspace:
+  - packages/disk_kit
+  - packages/disk_kit_platform_interface
+  - packages/disk_kit_macos
