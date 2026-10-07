@@ -27,11 +27,11 @@ DiskKit does not elevate privileges or install a privileged helper. macOS permis
 flutter pub add disk_kit
 ```
 
-Or add the first release to your app's `pubspec.yaml`:
+Or add the package to your app's `pubspec.yaml`:
 
 ```yaml
 dependencies:
-  disk_kit: ^0.0.1
+  disk_kit: ^0.0.2
 ```
 
 Import `package:disk_kit/disk_kit.dart`. The macOS implementation is installed and registered automatically; applications do not need to add `disk_kit_macos` or `disk_kit_platform_interface` directly.

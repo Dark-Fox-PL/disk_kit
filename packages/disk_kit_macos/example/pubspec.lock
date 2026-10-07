@@ -47,7 +47,7 @@ packages:
       path: "../../disk_kit"
       relative: true
     source: path
-    version: "0.0.1"
+    version: "0.0.2"
   disk_kit_macos:
     dependency: "direct overridden"
     description:
