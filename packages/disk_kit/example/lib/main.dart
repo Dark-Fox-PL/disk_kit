@@ -382,7 +382,13 @@ class _DiskKitExampleState extends State<DiskKitExample> {
                       .map(
                         (value) => DropdownMenuItem(
                           value: value,
-                          child: Text(value.name),
+                          child: Text(switch (value) {
+                            DiskFileSystem.exFat => 'exFAT',
+                            DiskFileSystem.fat32 => 'FAT32',
+                            DiskFileSystem.apfs => 'APFS',
+                            DiskFileSystem.hfsPlus =>
+                              'HFS+ (Mac OS Extended, Journaled)',
+                          }),
                         ),
                       )
                       .toList(),

@@ -131,6 +131,20 @@ await kit.eject(wholeDisk.id);
 
 Formatting is restricted to media positively identified by macOS as external. `formatVolume` requires a partition or volume; `formatDisk` requires a whole disk. APFS containers have additional system constraints; `diskutil` can reject volume-level conversions. Formatting delegates unmounting to `diskutil`; mount and unmount requests do not use force. Callers must confirm destructive operations with their users. DiskKit does not automatically back up or restore files.
 
+Select `DiskFileSystem.hfsPlus` for journaled, case-insensitive **HFS+ (Mac OS Extended, Journaled)**:
+
+```dart
+await kit.formatDisk(
+  wholeDisk.id,
+  fileSystem: DiskFileSystem.hfsPlus,
+  volumeName: 'MAC_USB',
+  partitionScheme: DiskPartitionScheme.gpt,
+);
+```
+
+This erases the entire selected external disk. Use `formatVolume` with the same
+filesystem option to format a single volume while keeping its partition table.
+
 An exFAT label is limited to 15 UTF-16 units. The initial FAT32 label validation accepts 1–11 uppercase ASCII letters, digits, underscores, or spaces. Other format and size restrictions are enforced by macOS.
 
 ## Renaming a volume

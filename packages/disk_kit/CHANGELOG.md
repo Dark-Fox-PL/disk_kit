@@ -1,3 +1,8 @@
+## Unreleased
+
+- Show readable filesystem names in both examples, including HFS+ (Mac OS Extended, Journaled).
+- Add an explicit HFS+ formatting example to the README; the existing API remains unchanged.
+
 ## 1.0.1
 
 - Simplify the README section on CocoaPods and Swift Package Manager and link to the macOS implementation guide for details.
