@@ -1,3 +1,7 @@
+## 1.0.1
+
+- Simplify the README section on CocoaPods and Swift Package Manager and link to the macOS implementation guide for details.
+
 ## 1.0.0
 
 - Add raw IMG / USB-compatible hybrid ISO writing with optional read-back verification.

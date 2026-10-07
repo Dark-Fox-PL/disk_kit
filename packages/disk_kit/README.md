@@ -34,7 +34,7 @@ Or add the package to your app's `pubspec.yaml`:
 
 ```yaml
 dependencies:
-  disk_kit: ^1.0.0
+  disk_kit: ^1.0.1
 ```
 
 Import `package:disk_kit/disk_kit.dart`. The macOS implementation is installed and registered automatically; applications do not need to add `disk_kit_macos` or `disk_kit_platform_interface` directly.
@@ -214,7 +214,7 @@ Download a complete compatible installer from Apple. DiskKit checks the Apple si
 
 ## Native dependency managers
 
-The macOS package includes both a CocoaPods podspec and a Swift Package Manager manifest. SwiftPM imports `FlutterFramework` and links the system Disk Arbitration, IOKit, and Security frameworks. See the [Flutter migration guide](https://docs.flutter.dev/packages-and-plugins/swift-package-manager/for-plugin-authors) for enabling SwiftPM in an application.
+Supports CocoaPods and Swift Package Manager on macOS. See the [macOS implementation guide](https://github.com/Dark-Fox-PL/disk_kit/blob/main/packages/disk_kit_macos/README.md) for integration details.
 
 ## Errors
 
