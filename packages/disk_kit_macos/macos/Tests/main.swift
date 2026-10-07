@@ -58,6 +58,19 @@ final class FileOperationsTests: XCTestCase {
         atPath: destination.appendingPathComponent("link").path), "../outside")
   }
 
+  @objc func testVolumeRenameLabels() throws {
+    try DiskKitFileOperations.validateVolumeName("NEW_USB", fileSystem: "exfat")
+    try DiskKitFileOperations.validateVolumeName("USB", fileSystem: "msdos")
+    XCTAssertThrowsError(try DiskKitFileOperations.validateVolumeName("", fileSystem: "apfs"))
+    XCTAssertThrowsError(
+      try DiskKitFileOperations.validateVolumeName("BAD/NAME", fileSystem: "exfat"))
+    XCTAssertThrowsError(
+      try DiskKitFileOperations.validateVolumeName("lowercase", fileSystem: "msdos"))
+    XCTAssertThrowsError(
+      try DiskKitFileOperations.validateVolumeName(
+        String(repeating: "🙂", count: 8), fileSystem: "exfat"))
+  }
+
   @objc func testFormatPlansWithoutExecutingThem() throws {
     XCTAssertEqual(
       try DiskKitFileOperations.formatArguments(
@@ -103,7 +116,7 @@ final class FileOperationsTests: XCTestCase {
 
 let suite = XCTestSuite(forTestCaseClass: FileOperationsTests.self)
 suite.run()
-guard let run = suite.testRun, run.executionCount == 6 else {
-  fatalError("Expected six native tests.")
+guard let run = suite.testRun, run.executionCount == 7 else {
+  fatalError("Expected seven native tests.")
 }
 exit(run.totalFailureCount == 0 ? 0 : 1)

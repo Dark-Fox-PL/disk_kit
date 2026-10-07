@@ -45,6 +45,7 @@ class FakePlatform extends DiskKitPlatform {
   List<String>? copied;
   bool formatted = false;
   String? formattedDisk;
+  List<String>? renamed;
   @override
   Stream<List<DiskInfo>> watchDisks() => Stream.value(disks);
   @override
@@ -56,6 +57,14 @@ class FakePlatform extends DiskKitPlatform {
     required String destinationPath,
   }) async {
     copied = [diskId, relativePath, destinationPath];
+  }
+
+  @override
+  Future<DiskInfo> renameVolume(String diskId,
+      {required String volumeName}) async {
+    renamed = [diskId, volumeName];
+    return DiskInfo(
+        id: diskId, devicePath: '/dev/$diskId', volumeName: volumeName);
   }
 
   @override
@@ -118,6 +127,20 @@ void main() {
     final efi = find.byKey(const ValueKey('volume-disk4s1'));
     expect(find.descendant(of: efi, matching: find.byType(OutlinedButton)),
         findsNothing);
+  });
+
+  testWidgets('rename dialog forwards the volume ID and new name',
+      (tester) async {
+    await tester.pumpWidget(const MyApp());
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Rename…'));
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byType(TextField), 'NEW_USB');
+    await tester.tap(find.text('Rename'));
+    await tester.pumpAndSettle();
+    expect(platform.renamed, ['disk4s2', 'NEW_USB']);
+    expect(platform.formatted, isFalse);
+    expect(platform.formattedDisk, isNull);
   });
 
   testWidgets('copy dialog forwards both paths', (tester) async {

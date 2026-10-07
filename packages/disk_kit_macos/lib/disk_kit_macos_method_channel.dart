@@ -3,9 +3,15 @@ import 'package:flutter/services.dart';
 
 /// macOS transport using method and event channels.
 class MethodChannelDiskKitMacos extends DiskKitPlatform {
+  /// Creates a transport for the registered macOS native plugin.
+  MethodChannelDiskKitMacos();
+
+  /// Native request channel. Errors are propagated as [PlatformException].
   final MethodChannel methodChannel = const MethodChannel(
     'eu.byfox.disk_kit/methods',
   );
+
+  /// Native disk snapshot channel, shared by all stream listeners.
   final EventChannel eventChannel =
       const EventChannel('eu.byfox.disk_kit/disks');
   Stream<List<DiskInfo>>? _disks;
@@ -19,14 +25,21 @@ class MethodChannelDiskKitMacos extends DiskKitPlatform {
       _disks ??= eventChannel.receiveBroadcastStream().map(_decode);
 
   @override
-  Future<void> mount(String diskId) => _operate('mount', diskId);
+  Future<DiskInfo> mount(String diskId) =>
+      _operate<Object?>('mount', diskId).then(_decodeDisk);
 
   @override
-  Future<void> unmount(String diskId, {bool wholeDisk = false}) =>
-      _operate('unmount', diskId, wholeDisk: wholeDisk);
+  Future<DiskInfo> unmount(String diskId, {bool wholeDisk = false}) =>
+      _operate<Object?>('unmount', diskId, wholeDisk: wholeDisk)
+          .then(_decodeDisk);
 
   @override
-  Future<void> eject(String diskId) => _operate('eject', diskId);
+  Future<void> eject(String diskId) => _operate<void>('eject', diskId);
+
+  @override
+  Future<DiskInfo> renameVolume(String diskId, {required String volumeName}) =>
+      _operate<Object?>('renameVolume', diskId,
+          arguments: {'volumeName': volumeName}).then(_decodeDisk);
 
   @override
   Future<void> copyFromDisk(
@@ -34,7 +47,7 @@ class MethodChannelDiskKitMacos extends DiskKitPlatform {
     required String relativePath,
     required String destinationPath,
   }) =>
-      _operate('copyFromDisk', diskId, arguments: {
+      _operate<void>('copyFromDisk', diskId, arguments: {
         'relativePath': relativePath,
         'localPath': destinationPath,
       });
@@ -45,7 +58,7 @@ class MethodChannelDiskKitMacos extends DiskKitPlatform {
     required String sourcePath,
     required String relativePath,
   }) =>
-      _operate('copyToDisk', diskId, arguments: {
+      _operate<void>('copyToDisk', diskId, arguments: {
         'relativePath': relativePath,
         'localPath': sourcePath,
       });
@@ -56,7 +69,7 @@ class MethodChannelDiskKitMacos extends DiskKitPlatform {
     required DiskFileSystem fileSystem,
     required String volumeName,
   }) =>
-      _operate('formatVolume', diskId, arguments: {
+      _operate<void>('formatVolume', diskId, arguments: {
         'fileSystem': fileSystem.name,
         'volumeName': volumeName,
       });
@@ -68,13 +81,13 @@ class MethodChannelDiskKitMacos extends DiskKitPlatform {
     required String volumeName,
     DiskPartitionScheme partitionScheme = DiskPartitionScheme.gpt,
   }) =>
-      _operate('formatDisk', diskId, arguments: {
+      _operate<void>('formatDisk', diskId, arguments: {
         'fileSystem': fileSystem.name,
         'volumeName': volumeName,
         'partitionScheme': partitionScheme.name,
       });
 
-  Future<void> _operate(
+  Future<T?> _operate<T>(
     String method,
     String diskId, {
     bool? wholeDisk,
@@ -83,11 +96,18 @@ class MethodChannelDiskKitMacos extends DiskKitPlatform {
     if (!RegExp(r'^disk[0-9]+(?:s[0-9]+)*$').hasMatch(diskId)) {
       throw ArgumentError.value(diskId, 'diskId', 'Expected a macOS BSD name.');
     }
-    await methodChannel.invokeMethod<void>(method, {
+    return methodChannel.invokeMethod<T>(method, {
       'diskId': diskId,
       if (wholeDisk != null) 'wholeDisk': wholeDisk,
       ...arguments,
     });
+  }
+
+  DiskInfo _decodeDisk(Object? value) {
+    if (value is! Map) {
+      throw const FormatException('Expected a DiskInfo map.');
+    }
+    return DiskInfo.fromMap(Map<Object?, Object?>.from(value));
   }
 
   List<DiskInfo> _decode(Object? value) {
@@ -95,12 +115,7 @@ class MethodChannelDiskKitMacos extends DiskKitPlatform {
       throw const FormatException('Expected a list of DiskInfo maps.');
     }
     return List.unmodifiable(
-      value.map((item) {
-        if (item is! Map) {
-          throw const FormatException('Expected a DiskInfo map.');
-        }
-        return DiskInfo.fromMap(Map<Object?, Object?>.from(item));
-      }),
+      value.map(_decodeDisk),
     );
   }
 }

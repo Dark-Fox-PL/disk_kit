@@ -28,7 +28,17 @@ void main() {
     calls.clear();
     messenger.setMockMethodCallHandler(methods, (call) async {
       calls.add(call);
-      return call.method == 'getDisks' ? fixture : null;
+      if (call.method == 'getDisks') return fixture;
+      if (['mount', 'unmount', 'renameVolume'].contains(call.method)) {
+        final args = Map<String, Object?>.from(call.arguments as Map);
+        return {
+          'id': args['diskId'],
+          'devicePath': '/dev/${args['diskId']}',
+          if (call.method == 'mount') 'volumePath': '/Volumes/USB',
+          if (call.method == 'renameVolume') 'volumeName': args['volumeName'],
+        };
+      }
+      return null;
     });
   });
   tearDown(() {
@@ -79,6 +89,27 @@ void main() {
       'volumeName': 'USB',
       'partitionScheme': 'mbr'
     });
+  });
+
+  test('mount and unmount return the actual target description', () async {
+    final DiskInfo mounted = await platform.mount('disk4s1');
+    expect(mounted.id, 'disk4s1');
+    expect(mounted.isMounted, isTrue);
+    final DiskInfo unmounted = await platform.unmount('disk4s1');
+    expect(unmounted.id, 'disk4s1');
+    expect(unmounted.isMounted, isFalse);
+    final DiskInfo whole = await platform.unmount('disk4', wholeDisk: true);
+    expect(whole.id, 'disk4');
+  });
+
+  test('serializes volume rename requests', () async {
+    final DiskInfo renamed =
+        await platform.renameVolume('disk4s1', volumeName: 'NEW_USB');
+    expect(renamed.id, 'disk4s1');
+    expect(renamed.volumeName, 'NEW_USB');
+    expect(calls.single.method, 'renameVolume');
+    expect(
+        calls.single.arguments, {'diskId': 'disk4s1', 'volumeName': 'NEW_USB'});
   });
 
   test('invalid identifiers never reach native code', () async {

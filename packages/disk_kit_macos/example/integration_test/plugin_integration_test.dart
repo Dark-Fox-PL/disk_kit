@@ -13,6 +13,7 @@ void main() {
   const kit = DiskKit();
   const testVolumeName = String.fromEnvironment('DISK_KIT_TEST_VOLUME_NAME');
   const testMountCycle = bool.fromEnvironment('DISK_KIT_TEST_MOUNT_CYCLE');
+  const testRename = bool.fromEnvironment('DISK_KIT_TEST_RENAME');
 
   testWidgets('native discovery and initial stream snapshot', (tester) async {
     final disks = await kit.getDisks();
@@ -117,7 +118,9 @@ void main() {
     });
     var didUnmount = false;
     try {
-      await kit.unmount(volume.id);
+      final DiskInfo target = await kit.unmount(volume.id);
+      expect(target.id, volume.id);
+      expect(target.isMounted, isFalse);
       didUnmount = true;
       expect(
           (await kit.getDisks())
@@ -127,7 +130,11 @@ void main() {
       await unmounted.future.timeout(const Duration(seconds: 10));
     } finally {
       await subscription.cancel();
-      if (didUnmount) await kit.mount(volume.id);
+      if (didUnmount) {
+        final DiskInfo mounted = await kit.mount(volume.id);
+        expect(mounted.id, volume.id);
+        expect(mounted.isMounted, isTrue);
+      }
     }
     expect(
         (await kit.getDisks())
@@ -135,4 +142,44 @@ void main() {
             .isMounted,
         isTrue);
   }, skip: testVolumeName.isEmpty || !testMountCycle);
+
+  testWidgets('rename preserves data, returns new metadata, and notifies observers', (tester) async {
+    final List<DiskInfo> matches = (await kit.getDisks()).where((DiskInfo disk) =>
+      disk.volumeName == testVolumeName && disk.isMounted && disk.isInternal == false).toList();
+    expect(matches, hasLength(1));
+    final DiskInfo original = matches.single;
+    final String newName = 'DK${DateTime.now().millisecondsSinceEpoch % 100000000}';
+    final String fileName = 'DiskKit-rename-${DateTime.now().microsecondsSinceEpoch}.txt';
+    const String content = 'Renaming preserves this test file.';
+    await File('${original.volumePath}/$fileName').writeAsString(content);
+    final renamedEvent = Completer<DiskInfo>();
+    final StreamSubscription<List<DiskInfo>> subscription = kit.watchDisks().listen((List<DiskInfo> snapshot) {
+      for (final DiskInfo disk in snapshot) {
+        if (disk.id == original.id && disk.volumeName == newName && !renamedEvent.isCompleted) {
+          renamedEvent.complete(disk);
+        }
+      }
+    });
+    try {
+      final DiskInfo renamed = await kit.renameVolume(original.id, volumeName: newName);
+      expect(renamed.id, original.id);
+      expect(renamed.volumeName, newName);
+      expect(renamed.volumeUuid, original.volumeUuid);
+      expect(renamed.isMounted, isTrue);
+      expect(await File('${renamed.volumePath}/$fileName').readAsString(), content);
+      expect((await renamedEvent.future.timeout(const Duration(seconds: 10))).volumeName, newName);
+      await expectLater(kit.renameVolume(original.id, volumeName: 'BAD/NAME'),
+        throwsA(isA<PlatformException>().having((error) => error.code, 'code', 'invalid_arguments')));
+    } finally {
+      await subscription.cancel();
+      DiskInfo current = (await kit.getDisks()).singleWhere((DiskInfo disk) => disk.id == original.id);
+      if (current.volumeName != testVolumeName) {
+        current = await kit.renameVolume(current.id, volumeName: testVolumeName);
+      }
+      expect(current.volumeName, testVolumeName);
+      final File fixture = File('${current.volumePath}/$fileName');
+      if (await fixture.exists()) await fixture.delete();
+    }
+  }, skip: testVolumeName.isEmpty || !testRename);
+
 }

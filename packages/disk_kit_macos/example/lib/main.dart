@@ -185,6 +185,34 @@ class _DiskKitExampleState extends State<DiskKitExample> {
     );
   }
 
+  Future<void> _rename(DiskInfo disk) async {
+    final name = _volumeName..text = disk.volumeName ?? '';
+    final newName = await showDialog<String>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Rename volume'),
+        content: SizedBox(
+            width: 420,
+            child: TextField(
+              controller: name,
+              autofocus: true,
+              decoration: const InputDecoration(labelText: 'New volume name'),
+              onSubmitted: (value) => Navigator.pop(context, value),
+            )),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Cancel')),
+          FilledButton(
+              onPressed: () => Navigator.pop(context, name.text),
+              child: const Text('Rename')),
+        ],
+      ),
+    );
+    if (newName == null || !mounted) return;
+    await _run('Rename', () => _kit.renameVolume(disk.id, volumeName: newName));
+  }
+
   Future<void> _format(DiskInfo disk) async {
     final name = _volumeName..text = 'DISKKIT';
     final confirmation = _confirmation..clear();
@@ -362,6 +390,10 @@ class _DiskKitExampleState extends State<DiskKitExample> {
                       : () => _run('Unmount', () => _kit.unmount(disk.id)),
                   child: const Text('Unmount')),
             ],
+            if (disk.isMountable == true || disk.volumeName != null)
+              OutlinedButton(
+                  onPressed: _running ? null : () => _rename(disk),
+                  child: const Text('Rename…')),
             if (disk.isWholeDisk == false)
               OutlinedButton(
                   onPressed: _running ? null : () => _format(disk),

@@ -6,18 +6,18 @@ import IOKit
 private final class DiskOperation {
   // Keep the session alive until Disk Arbitration has delivered its callback.
   let session: DASession
-  let completion: (DADissenter?) -> Void
+  let completion: (DADisk, DADissenter?) -> Void
 
-  init(session: DASession, completion: @escaping (DADissenter?) -> Void) {
+  init(session: DASession, completion: @escaping (DADisk, DADissenter?) -> Void) {
     self.session = session
     self.completion = completion
   }
 }
 
-private let operationCompleted: DADiskMountCallback = { _, dissenter, context in
+private let operationCompleted: DADiskMountCallback = { disk, dissenter, context in
   guard let context = context else { return }
   let operation = Unmanaged<DiskOperation>.fromOpaque(context).takeRetainedValue()
-  operation.completion(dissenter)
+  operation.completion(disk, dissenter)
 }
 
 private let diskAppeared: DADiskAppearedCallback = { disk, context in
@@ -190,8 +190,11 @@ public class DiskKitMacosPlugin: NSObject, FlutterPlugin, FlutterStreamHandler {
         return
       }
       guard
-        ["mount", "unmount", "eject", "copyFromDisk", "copyToDisk", "formatVolume", "formatDisk"]
-          .contains(call.method)
+        [
+          "mount", "unmount", "eject", "renameVolume", "copyFromDisk", "copyToDisk", "formatVolume",
+          "formatDisk",
+        ]
+        .contains(call.method)
       else {
         result(FlutterMethodNotImplemented)
         return
@@ -229,8 +232,22 @@ public class DiskKitMacosPlugin: NSObject, FlutterPlugin, FlutterStreamHandler {
         }
         target = whole
       }
+      var newName: String?
+      if call.method == "renameVolume" {
+        guard info["isMountable"] as? Bool == true || info["volumeName"] is String else {
+          throw DiskKitNativeError(
+            code: "invalid_target", message: "Rename requires a recognized filesystem volume.")
+        }
+        guard let name = args["volumeName"] as? String else {
+          throw DiskKitNativeError(
+            code: "invalid_arguments", message: "A new volume name is required.")
+        }
+        try DiskKitFileOperations.validateVolumeName(
+          name, fileSystem: info["fileSystem"] as? String)
+        newName = name
+      }
       busyDisks.insert(wholeId)
-      let operation = DiskOperation(session: session) { [self] dissenter in
+      let operation = DiskOperation(session: session) { [self] completedDisk, dissenter in
         busyDisks.remove(wholeId)
         if let dissenter = dissenter {
           result(
@@ -242,9 +259,21 @@ public class DiskKitMacosPlugin: NSObject, FlutterPlugin, FlutterStreamHandler {
                 "operation": call.method, "diskId": id, "status": DADissenterGetStatus(dissenter),
               ]))
         } else {
-          result(nil)
+          if let refreshed = try? snapshot() { sink?(refreshed) }
+          if call.method == "eject" {
+            result(nil)
+          } else if let finalInfo = DADiskGetBSDName(completedDisk).flatMap({
+            disks[String(cString: $0)]
+          }) ?? describe(completedDisk) {
+            result(finalInfo)
+          } else {
+            result(
+              FlutterError(
+                code: "disk_not_found",
+                message: "The operation completed but its target description is unavailable.",
+                details: ["operation": call.method, "diskId": id]))
+          }
         }
-        if let refreshed = try? snapshot() { sink?(refreshed) }
       }
       let context = Unmanaged.passRetained(operation).toOpaque()
       switch call.method {
@@ -256,6 +285,10 @@ public class DiskKitMacosPlugin: NSObject, FlutterPlugin, FlutterStreamHandler {
           args["wholeDisk"] as? Bool == true
           ? kDADiskUnmountOptionWhole : kDADiskUnmountOptionDefault
         DADiskUnmount(target, DADiskUnmountOptions(options), operationCompleted, context)
+      case "renameVolume":
+        DADiskRename(
+          target, newName! as CFString, DADiskRenameOptions(kDADiskRenameOptionDefault),
+          operationCompleted, context)
       default:
         DADiskEject(
           target, DADiskEjectOptions(kDADiskEjectOptionDefault), operationCompleted, context)

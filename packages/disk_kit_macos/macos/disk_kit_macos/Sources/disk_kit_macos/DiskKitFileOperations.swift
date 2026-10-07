@@ -57,6 +57,28 @@ enum DiskKitFileOperations {
     try FileManager.default.copyItem(at: source, to: destination)
   }
 
+  /// Validates both formatting labels and native filesystem rename requests.
+  static func validateVolumeName(_ volumeName: String, fileSystem: String?) throws {
+    guard !volumeName.isEmpty,
+      !volumeName.contains(where: { "/:\\\0".contains($0) }),
+      volumeName.utf16.count <= 255
+    else {
+      throw DiskKitNativeError(
+        code: "invalid_arguments", message: "Invalid volume name.")
+    }
+    if fileSystem == "exFat" || fileSystem == "exfat", volumeName.utf16.count > 15 {
+      throw DiskKitNativeError(
+        code: "invalid_arguments", message: "An exFAT label can contain at most 15 UTF-16 units.")
+    }
+    if fileSystem == "fat32" || fileSystem == "msdos",
+      volumeName.range(of: "^[A-Z0-9_ ]{1,11}$", options: .regularExpression) == nil
+    {
+      throw DiskKitNativeError(
+        code: "invalid_arguments",
+        message: "Use 1–11 uppercase ASCII letters, digits, underscores, or spaces for FAT32.")
+    }
+  }
+
   /// Returns arguments only; this function never launches diskutil.
   static func formatArguments(
     diskId: String, fileSystem: String, volumeName: String, scheme: String?
@@ -65,24 +87,10 @@ enum DiskKitFileOperations {
       throw DiskKitNativeError(code: "invalid_arguments", message: "Invalid BSD disk identifier.")
     }
     let formats = ["exFat": "ExFAT", "fat32": "MS-DOS FAT32", "apfs": "APFS", "hfsPlus": "JHFS+"]
-    guard let format = formats[fileSystem], !volumeName.isEmpty,
-      !volumeName.contains(where: { "/:\\\0".contains($0) }),
-      volumeName.utf16.count <= 255
-    else {
-      throw DiskKitNativeError(
-        code: "invalid_arguments", message: "Unsupported filesystem or invalid volume name.")
+    guard let format = formats[fileSystem] else {
+      throw DiskKitNativeError(code: "invalid_arguments", message: "Unsupported filesystem.")
     }
-    if fileSystem == "exFat", volumeName.utf16.count > 15 {
-      throw DiskKitNativeError(
-        code: "invalid_arguments", message: "An exFAT label can contain at most 15 UTF-16 units.")
-    }
-    if fileSystem == "fat32",
-      volumeName.range(of: "^[A-Z0-9_ ]{1,11}$", options: .regularExpression) == nil
-    {
-      throw DiskKitNativeError(
-        code: "invalid_arguments",
-        message: "Use 1–11 uppercase ASCII letters, digits, underscores, or spaces for FAT32.")
-    }
+    try validateVolumeName(volumeName, fileSystem: fileSystem)
     if let scheme = scheme {
       guard ["gpt", "mbr"].contains(scheme), !(fileSystem == "apfs" && scheme == "mbr") else {
         throw DiskKitNativeError(

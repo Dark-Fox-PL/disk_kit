@@ -38,6 +38,8 @@ void main() {
     await expectLater(platform.mount('disk4'), throwsUnsupportedError);
     await expectLater(platform.unmount('disk4'), throwsUnsupportedError);
     await expectLater(platform.eject('disk4'), throwsUnsupportedError);
+    await expectLater(platform.renameVolume('disk4s1', volumeName: 'USB'),
+        throwsUnsupportedError);
     await expectLater(
         platform.copyFromDisk('disk4',
             relativePath: 'a', destinationPath: '/tmp/b'),

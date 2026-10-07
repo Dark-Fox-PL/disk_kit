@@ -10,18 +10,29 @@ class FakePlatform extends DiskKitPlatform {
   @override
   Stream<List<DiskInfo>> watchDisks() => Stream.value([disk]);
   @override
-  Future<void> mount(String diskId) async {
+  Future<DiskInfo> mount(String diskId) async {
     calls.add(['mount', diskId]);
+    return DiskInfo(
+        id: diskId, devicePath: '/dev/$diskId', volumePath: '/Volumes/USB');
   }
 
   @override
-  Future<void> unmount(String diskId, {bool wholeDisk = false}) async {
+  Future<DiskInfo> unmount(String diskId, {bool wholeDisk = false}) async {
     calls.add(['unmount', diskId, wholeDisk]);
+    return DiskInfo(id: diskId, devicePath: '/dev/$diskId');
   }
 
   @override
   Future<void> eject(String diskId) async {
     calls.add(['eject', diskId]);
+  }
+
+  @override
+  Future<DiskInfo> renameVolume(String diskId,
+      {required String volumeName}) async {
+    calls.add(['renameVolume', diskId, volumeName]);
+    return DiskInfo(
+        id: diskId, devicePath: '/dev/$diskId', volumeName: volumeName);
   }
 
   @override
@@ -66,11 +77,23 @@ void main() {
     expect((await kit.watchDisks().first).single.id, 'disk4');
   });
 
+  test('public API returns descriptions for volume operations', () async {
+    const DiskKit kit = DiskKit();
+    final DiskInfo mounted = await kit.mount('disk4s1');
+    final DiskInfo unmounted = await kit.unmount(mounted.id);
+    final DiskInfo renamed =
+        await kit.renameVolume(unmounted.id, volumeName: 'NEW_USB');
+    expect(mounted.isMounted, isTrue);
+    expect(unmounted.isMounted, isFalse);
+    expect(renamed.volumeName, 'NEW_USB');
+  });
+
   test('public API forwards targets and operation options', () async {
     const kit = DiskKit();
     await kit.mount('disk4s1');
     await kit.unmount('disk4', wholeDisk: true);
     await kit.eject('disk4');
+    await kit.renameVolume('disk4s1', volumeName: 'NEW_USB');
     await kit.copyFromDisk('disk4s1',
         relativePath: 'a', destinationPath: '/tmp/b');
     await kit.copyToDisk('disk4s1', sourcePath: '/tmp/b', relativePath: 'a');
@@ -84,6 +107,7 @@ void main() {
       ['mount', 'disk4s1'],
       ['unmount', 'disk4', true],
       ['eject', 'disk4'],
+      ['renameVolume', 'disk4s1', 'NEW_USB'],
       ['copyFromDisk', 'disk4s1', 'a', '/tmp/b'],
       ['copyToDisk', 'disk4s1', '/tmp/b', 'a'],
       ['formatVolume', 'disk4s1', DiskFileSystem.exFat, 'USB'],
