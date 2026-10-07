@@ -5,16 +5,16 @@
 Pod::Spec.new do |s|
   s.name             = 'disk_kit_macos'
   s.version          = '0.0.1'
-  s.summary          = 'A new Flutter plugin project.'
+  s.summary          = 'macOS storage operations for DiskKit.'
   s.description      = <<-DESC
-A new Flutter plugin project.
+Disk discovery, notifications, mounting, copying and formatting for DiskKit.
                        DESC
-  s.homepage         = 'http://example.com'
-  s.license          = { :file => '../LICENSE' }
-  s.author           = { 'Your Company' => 'email@example.com' }
+  s.homepage         = 'https://github.com/Dark-Fox-PL/disk_kit'
+  s.license          = { :type => 'MIT', :file => '../LICENSE' }
+  s.author           = 'ByFox'
 
   s.source           = { :path => '.' }
-  s.source_files = 'disk_kit_macos/Sources/disk_kit_macos/**/*'
+  s.source_files = 'disk_kit_macos/Sources/disk_kit_macos/**/*.swift'
 
   # If your plugin requires a privacy manifest, for example if it collects user
   # data, update the PrivacyInfo.xcprivacy file to describe your plugin's
@@ -24,7 +24,8 @@ A new Flutter plugin project.
 
   s.dependency 'FlutterMacOS'
 
-  s.platform = :osx, '10.11'
+  s.platform = :osx, '12.0'
+  s.frameworks = 'DiskArbitration', 'IOKit'
   s.pod_target_xcconfig = { 'DEFINES_MODULE' => 'YES' }
   s.swift_version = '5.0'
 end

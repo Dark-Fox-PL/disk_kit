@@ -1,26 +1,134 @@
+import 'dart:async';
+
+import 'package:disk_kit_macos/disk_kit_macos_method_channel.dart';
+import 'package:disk_kit_platform_interface/disk_kit_platform_interface.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:disk_kit_macos/disk_kit_macos_method_channel.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
-
-  MethodChannelDiskKitMacos platform = MethodChannelDiskKitMacos();
-  const MethodChannel channel = MethodChannel('disk_kit_macos');
+  final messenger =
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
+  const methods = MethodChannel('eu.byfox.disk_kit/methods');
+  const events = MethodChannel('eu.byfox.disk_kit/disks');
+  const fixture = [
+    {
+      'id': 'disk4s1',
+      'devicePath': '/dev/disk4s1',
+      'fileSystem': 'exfat',
+      'sizeBytes': 8000000000,
+      'volumePath': '/Volumes/USB'
+    }
+  ];
+  late MethodChannelDiskKitMacos platform;
+  final calls = <MethodCall>[];
 
   setUp(() {
-    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
-        .setMockMethodCallHandler(channel, (MethodCall methodCall) async {
-          return '42';
-        });
+    platform = MethodChannelDiskKitMacos();
+    calls.clear();
+    messenger.setMockMethodCallHandler(methods, (call) async {
+      calls.add(call);
+      return call.method == 'getDisks' ? fixture : null;
+    });
   });
-
   tearDown(() {
-    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
-        .setMockMethodCallHandler(channel, null);
+    messenger.setMockMethodCallHandler(methods, null);
+    messenger.setMockMethodCallHandler(events, null);
   });
 
-  test('getPlatformVersion', () async {
-    expect(await platform.getPlatformVersion(), '42');
+  test('decodes a snapshot and returns an immutable list', () async {
+    final disks = await platform.getDisks();
+    expect(disks.single.sizeBytes, 8000000000);
+    expect(disks.single.isMounted, isTrue);
+    expect(() => disks.clear(), throwsUnsupportedError);
+  });
+
+  test('serializes all operation arguments', () async {
+    await platform.mount('disk4s1');
+    await platform.unmount('disk4', wholeDisk: true);
+    await platform.eject('disk4');
+    await platform.copyFromDisk('disk4s1',
+        relativePath: 'a', destinationPath: '/tmp/b');
+    await platform.copyToDisk('disk4s1',
+        sourcePath: '/tmp/b', relativePath: 'a');
+    await platform.formatVolume('disk4s1',
+        fileSystem: DiskFileSystem.exFat, volumeName: 'USB');
+    await platform.formatDisk('disk4',
+        fileSystem: DiskFileSystem.fat32,
+        volumeName: 'USB',
+        partitionScheme: DiskPartitionScheme.mbr);
+    expect(calls.map((call) => call.method), [
+      'mount',
+      'unmount',
+      'eject',
+      'copyFromDisk',
+      'copyToDisk',
+      'formatVolume',
+      'formatDisk'
+    ]);
+    expect(calls[1].arguments, {'diskId': 'disk4', 'wholeDisk': true});
+    expect(calls[3].arguments,
+        {'diskId': 'disk4s1', 'relativePath': 'a', 'localPath': '/tmp/b'});
+    expect(calls[4].arguments,
+        {'diskId': 'disk4s1', 'relativePath': 'a', 'localPath': '/tmp/b'});
+    expect(calls[5].arguments,
+        {'diskId': 'disk4s1', 'fileSystem': 'exFat', 'volumeName': 'USB'});
+    expect(calls[6].arguments, {
+      'diskId': 'disk4',
+      'fileSystem': 'fat32',
+      'volumeName': 'USB',
+      'partitionScheme': 'mbr'
+    });
+  });
+
+  test('invalid identifiers never reach native code', () async {
+    for (final id in ['', '/dev/disk4', 'disk4;rm -rf /', 'disk']) {
+      await expectLater(platform.eject(id), throwsArgumentError);
+    }
+    expect(calls, isEmpty);
+  });
+
+  test('preserves structured native errors', () async {
+    messenger.setMockMethodCallHandler(
+        methods,
+        (_) async => throw PlatformException(
+            code: 'disk_busy', message: 'Busy', details: {'status': 16}));
+    await expectLater(
+        platform.unmount('disk4s1'),
+        throwsA(isA<PlatformException>()
+            .having((e) => e.code, 'code', 'disk_busy')
+            .having((e) => e.details, 'details', {'status': 16})));
+  });
+
+  test('malformed snapshots fail rather than appearing empty', () async {
+    messenger.setMockMethodCallHandler(methods, (_) async => null);
+    await expectLater(platform.getDisks(), throwsFormatException);
+  });
+
+  test('shares an event subscription and cancels when last listener leaves',
+      () async {
+    final listen = Completer<void>();
+    final cancel = Completer<void>();
+    messenger.setMockMethodCallHandler(events, (call) async {
+      if (call.method == 'listen') listen.complete();
+      if (call.method == 'cancel') cancel.complete();
+      return null;
+    });
+    final first = Completer<List<DiskInfo>>();
+    final second = Completer<List<DiskInfo>>();
+    final stream = platform.watchDisks();
+    expect(stream.isBroadcast, isTrue);
+    expect(identical(stream, platform.watchDisks()), isTrue);
+    final a = stream.listen(first.complete);
+    final b = stream.listen(second.complete);
+    await listen.future;
+    await messenger.handlePlatformMessage(events.name,
+        const StandardMethodCodec().encodeSuccessEnvelope(fixture), null);
+    expect((await first.future).single.id, 'disk4s1');
+    expect((await second.future).single.id, 'disk4s1');
+    await a.cancel();
+    expect(cancel.isCompleted, isFalse);
+    await b.cancel();
+    await cancel.future;
   });
 }
