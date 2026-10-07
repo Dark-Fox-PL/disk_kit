@@ -20,7 +20,7 @@ let package = Package(
       dependencies: [
         .product(name: "FlutterFramework", package: "FlutterFramework")
       ],
-      linkerSettings: [.linkedFramework("DiskArbitration"), .linkedFramework("IOKit")]
+      linkerSettings: [.linkedFramework("DiskArbitration"), .linkedFramework("IOKit"), .linkedFramework("Security")]
     )
   ]
 )

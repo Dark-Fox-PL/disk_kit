@@ -1,10 +1,38 @@
 import 'package:disk_kit_platform_interface/disk_kit_platform_interface.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter/foundation.dart';
 
 /// macOS transport using method and event channels.
 class MethodChannelDiskKitMacos extends DiskKitPlatform {
   /// Creates a transport for the registered macOS native plugin.
   MethodChannelDiskKitMacos();
+
+  bool _progressHandlerInstalled = false;
+  void _installProgressHandler() {
+    if (_progressHandlerInstalled) return;
+    _progressHandlerInstalled = true;
+    methodChannel.setMethodCallHandler((call) async {
+      if (call.method != 'mediaProgress') return;
+      final data = Map<Object?, Object?>.from(call.arguments as Map);
+      final callback = _progress[data['operationId']];
+      if (callback != null) {
+        try {
+          callback(MediaOperationProgress.fromMap(data));
+        } catch (error, stack) {
+          FlutterError.reportError(FlutterErrorDetails(
+            exception: error,
+            stack: stack,
+            library: 'disk_kit_macos',
+            context:
+                ErrorDescription('while reporting media operation progress'),
+          ));
+        }
+      }
+    });
+  }
+
+  final _progress = <String, MediaProgressCallback>{};
+  static int _nextOperation = 0;
 
   /// Native request channel. Errors are propagated as [PlatformException].
   final MethodChannel methodChannel = const MethodChannel(
@@ -86,6 +114,74 @@ class MethodChannelDiskKitMacos extends DiskKitPlatform {
         'volumeName': volumeName,
         'partitionScheme': partitionScheme.name,
       });
+
+  @override
+  Future<void> writeImage(
+    String diskId, {
+    required String imagePath,
+    bool verify = true,
+    bool allowElevation = true,
+    MediaProgressCallback? onProgress,
+  }) =>
+      _mediaOperation(
+          'writeImage',
+          diskId,
+          {
+            'imagePath': imagePath,
+            'verify': verify,
+            'allowElevation': allowElevation,
+          },
+          onProgress);
+
+  @override
+  Future<void> createWindowsInstaller(
+    String diskId, {
+    required String isoPath,
+    String? wimlibPath,
+    bool verify = true,
+    MediaProgressCallback? onProgress,
+  }) =>
+      _mediaOperation(
+          'createWindowsInstaller',
+          diskId,
+          {
+            'isoPath': isoPath,
+            if (wimlibPath != null) 'wimlibPath': wimlibPath,
+            'verify': verify,
+          },
+          onProgress);
+
+  @override
+  Future<void> createMacOSInstaller(
+    String diskId, {
+    required String installerAppPath,
+    bool allowElevation = true,
+    MediaProgressCallback? onProgress,
+  }) =>
+      _mediaOperation(
+          'createMacOSInstaller',
+          diskId,
+          {
+            'installerAppPath': installerAppPath,
+            'allowElevation': allowElevation,
+          },
+          onProgress);
+
+  Future<void> _mediaOperation(String method, String diskId,
+      Map<String, Object?> arguments, MediaProgressCallback? callback) async {
+    _installProgressHandler();
+    final operationId =
+        '${DateTime.now().microsecondsSinceEpoch}-${_nextOperation++}';
+    if (callback != null) _progress[operationId] = callback;
+    try {
+      await _operate<void>(method, diskId, arguments: {
+        ...arguments,
+        'operationId': operationId,
+      });
+    } finally {
+      _progress.remove(operationId);
+    }
+  }
 
   Future<T?> _operate<T>(
     String method,

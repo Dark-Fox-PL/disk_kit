@@ -4,7 +4,7 @@
 #
 Pod::Spec.new do |s|
   s.name             = 'disk_kit_macos'
-  s.version          = '0.0.1'
+  s.version          = '1.0.0'
   s.summary          = 'macOS storage operations for DiskKit.'
   s.description      = <<-DESC
 Disk discovery, notifications, mounting, copying and formatting for DiskKit.
@@ -25,7 +25,7 @@ Disk discovery, notifications, mounting, copying and formatting for DiskKit.
   s.dependency 'FlutterMacOS'
 
   s.platform = :osx, '12.0'
-  s.frameworks = 'DiskArbitration', 'IOKit'
+  s.frameworks = 'DiskArbitration', 'IOKit', 'Security'
   s.pod_target_xcconfig = { 'DEFINES_MODULE' => 'YES' }
   s.swift_version = '5.0'
 end

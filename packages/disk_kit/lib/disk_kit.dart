@@ -1,4 +1,4 @@
-/// Native disk discovery, notifications, copying, formatting, and volume operations.
+/// Native disk discovery, volume operations, copying, formatting, and installation media.
 ///
 /// Use [DiskKit] to access the registered platform implementation. [DiskInfo]
 /// describes disks and volumes returned by discovery and completed operations.
@@ -7,7 +7,13 @@ library;
 import 'package:disk_kit_platform_interface/disk_kit_platform_interface.dart';
 
 export 'package:disk_kit_platform_interface/disk_kit_platform_interface.dart'
-    show DiskInfo, DiskFileSystem, DiskPartitionScheme;
+    show
+        DiskInfo,
+        DiskFileSystem,
+        DiskPartitionScheme,
+        MediaOperationStage,
+        MediaOperationProgress,
+        MediaProgressCallback;
 
 /// Communicates with the operating system's disk management APIs.
 ///
@@ -19,7 +25,8 @@ export 'package:disk_kit_platform_interface/disk_kit_platform_interface.dart'
 /// Invalid macOS BSD names report [ArgumentError]. IDs come from [getDisks];
 /// they are attachment-specific and can be reused after a device is removed.
 ///
-/// DiskKit does not elevate privileges or implement an automatic backup workflow.
+/// Media operations may request administrator authorization on macOS.
+/// DiskKit does not implement an automatic backup workflow.
 /// Callers confirm destructive operations and cancel their stream subscriptions.
 class DiskKit {
   /// Creates a stateless handle to the registered platform implementation.
@@ -163,4 +170,75 @@ class DiskKit {
         volumeName: volumeName,
         partitionScheme: partitionScheme,
       );
+
+  /// Writes an uncompressed IMG or USB-compatible hybrid ISO to an external
+  /// whole disk, replacing its partition table and all data.
+  ///
+  /// Use [createWindowsInstaller] for ordinary Windows ISOs and
+  /// [createMacOSInstaller] for Apple's installers. Raw writing does not turn
+  /// an arbitrary ISO into bootable media. Compressed images and container DMGs
+  /// are not supported. The image must fit on the target and be stored elsewhere.
+  /// [verify] defaults to true and compares the image-length destination bytes.
+  /// [allowElevation] permits a macOS administrator prompt; false uses current
+  /// privileges. [onProgress] reports stages and bytes where measurable.
+  /// Confirm erasure first and refresh the target ID. Failed operations can
+  /// leave unusable media. There is no cancellation or automatic rollback.
+  Future<void> writeImage(
+    String diskId, {
+    required String imagePath,
+    bool verify = true,
+    bool allowElevation = true,
+    MediaProgressCallback? onProgress,
+  }) =>
+      DiskKitPlatform.instance.writeImage(diskId,
+          imagePath: imagePath,
+          verify: verify,
+          allowElevation: allowElevation,
+          onProgress: onProgress);
+
+  /// Creates Windows installation media for UEFI from a local Windows ISO.
+  ///
+  /// Erases all partitions on an external whole disk, creates MBR/FAT32, and
+  /// copies the ISO contents. Legacy BIOS boot is not configured. The ISO must
+  /// contain a supported EFI bootloader and sources/boot.wim. Files over FAT32's
+  /// limit are rejected except sources/install.wim, which is split into SWMs.
+  /// Install wimlib-imagex separately for splitting; [wimlibPath] can supply an
+  /// absolute executable path. Missing tools are detected before erasure.
+  /// Oversized install.esd is unsupported. [verify] compares copied files and
+  /// verifies the split WIM with wimlib. Firmware, Secure Boot trust, and CPU
+  /// compatibility depend on the chosen ISO and target computer.
+  /// [onProgress] receives stage updates and copy/verification byte counts.
+  Future<void> createWindowsInstaller(
+    String diskId, {
+    required String isoPath,
+    String? wimlibPath,
+    bool verify = true,
+    MediaProgressCallback? onProgress,
+  }) =>
+      DiskKitPlatform.instance.createWindowsInstaller(diskId,
+          isoPath: isoPath,
+          wimlibPath: wimlibPath,
+          verify: verify,
+          onProgress: onProgress);
+
+  /// Creates bootable macOS installation media from a full Apple installer app.
+  ///
+  /// [installerAppPath] must point to a complete Install macOS .app containing
+  /// an Apple-signed createinstallmedia tool; ISO/DMG files are not accepted.
+  /// Erases all partitions on the external whole disk and prepares GPT/HFS+.
+  /// [allowElevation] permits the macOS administrator prompt required by Apple's
+  /// tool. With false, the host must already have adequate privileges.
+  /// Apple's tool validates its installer and controls progress; [onProgress]
+  /// reports indeterminate stages. The installer version must support the host
+  /// and destination Mac. A failed operation can leave partially prepared media.
+  Future<void> createMacOSInstaller(
+    String diskId, {
+    required String installerAppPath,
+    bool allowElevation = true,
+    MediaProgressCallback? onProgress,
+  }) =>
+      DiskKitPlatform.instance.createMacOSInstaller(diskId,
+          installerAppPath: installerAppPath,
+          allowElevation: allowElevation,
+          onProgress: onProgress);
 }

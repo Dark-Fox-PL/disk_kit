@@ -60,6 +60,38 @@ class FakePlatform extends DiskKitPlatform {
       DiskPartitionScheme partitionScheme = DiskPartitionScheme.gpt}) async {
     calls.add(['formatDisk', diskId, fileSystem, volumeName, partitionScheme]);
   }
+
+  @override
+  Future<void> writeImage(String diskId,
+      {required String imagePath,
+      bool verify = true,
+      bool allowElevation = true,
+      MediaProgressCallback? onProgress}) async {
+    calls.add(['writeImage', diskId, imagePath, verify, allowElevation]);
+    onProgress?.call(MediaOperationProgress(
+        diskId: diskId,
+        stage: MediaOperationStage.writing,
+        bytesCompleted: 512,
+        totalBytes: 1024));
+  }
+
+  @override
+  Future<void> createWindowsInstaller(String diskId,
+      {required String isoPath,
+      String? wimlibPath,
+      bool verify = true,
+      MediaProgressCallback? onProgress}) async {
+    calls.add(['createWindowsInstaller', diskId, isoPath, wimlibPath, verify]);
+  }
+
+  @override
+  Future<void> createMacOSInstaller(String diskId,
+      {required String installerAppPath,
+      bool allowElevation = true,
+      MediaProgressCallback? onProgress}) async {
+    calls.add(
+        ['createMacOSInstaller', diskId, installerAppPath, allowElevation]);
+  }
 }
 
 void main() {
@@ -70,6 +102,46 @@ void main() {
     DiskKitPlatform.instance = platform;
   });
   tearDown(() => DiskKitPlatform.instance = original);
+
+  test('public API forwards installer options and measurable progress',
+      () async {
+    const kit = DiskKit();
+    final updates = <MediaOperationProgress>[];
+    await kit.writeImage('disk4',
+        imagePath: '/tmp/ubuntu.iso',
+        verify: false,
+        allowElevation: false,
+        onProgress: updates.add);
+    await kit.createWindowsInstaller('disk4',
+        isoPath: '/tmp/windows.iso',
+        wimlibPath: '/opt/homebrew/bin/wimlib-imagex',
+        verify: false);
+    await kit.createMacOSInstaller('disk4',
+        installerAppPath: '/Applications/Install macOS.app',
+        allowElevation: false);
+    expect(platform.calls, [
+      ['writeImage', 'disk4', '/tmp/ubuntu.iso', false, false],
+      [
+        'createWindowsInstaller',
+        'disk4',
+        '/tmp/windows.iso',
+        '/opt/homebrew/bin/wimlib-imagex',
+        false
+      ],
+      [
+        'createMacOSInstaller',
+        'disk4',
+        '/Applications/Install macOS.app',
+        false
+      ],
+    ]);
+    expect(updates.single.fraction, 0.5);
+    expect(
+        const MediaOperationProgress(
+                diskId: 'disk4', stage: MediaOperationStage.authorizing)
+            .fraction,
+        isNull);
+  });
 
   test('public API exposes discovery and snapshots', () async {
     const kit = DiskKit();

@@ -53,6 +53,50 @@ void main() {
     expect(() => disks.clear(), throwsUnsupportedError);
   });
 
+  test('serializes image and installer operations with safe defaults',
+      () async {
+    await platform.writeImage('disk4', imagePath: '/tmp/ubuntu.iso');
+    await platform.createWindowsInstaller('disk4',
+        isoPath: '/tmp/windows.iso', wimlibPath: '/tmp/wimlib');
+    await platform.createMacOSInstaller('disk4',
+        installerAppPath: '/Applications/Install macOS.app',
+        allowElevation: false);
+    expect(calls.map((call) => call.method),
+        ['writeImage', 'createWindowsInstaller', 'createMacOSInstaller']);
+    final raw = Map<String, Object?>.from(calls[0].arguments as Map);
+    expect(raw['diskId'], 'disk4');
+    expect(raw['verify'], isTrue);
+    expect(raw['allowElevation'], isTrue);
+    expect(raw['imagePath'], '/tmp/ubuntu.iso');
+    expect(raw['operationId'], isA<String>());
+    expect((calls[1].arguments as Map)['wimlibPath'], '/tmp/wimlib');
+    expect((calls[2].arguments as Map)['allowElevation'], isFalse);
+  });
+
+  test('native progress reaches only the operation callback', () async {
+    messenger.setMockMethodCallHandler(methods, (call) async {
+      final args = Map<Object?, Object?>.from(call.arguments as Map);
+      // ignore: deprecated_member_use
+      await messenger.handlePlatformMessage(
+          methods.name,
+          const StandardMethodCodec()
+              .encodeMethodCall(MethodCall('mediaProgress', {
+            'operationId': args['operationId'],
+            'diskId': args['diskId'],
+            'stage': 'writing',
+            'bytesCompleted': 512,
+            'totalBytes': 1024,
+          })),
+          (_) {});
+      return null;
+    });
+    final updates = <MediaOperationProgress>[];
+    await platform.writeImage('disk4',
+        imagePath: '/tmp/image.img', onProgress: updates.add);
+    expect(updates.single.stage, MediaOperationStage.writing);
+    expect(updates.single.fraction, 0.5);
+  });
+
   test('serializes all operation arguments', () async {
     await platform.mount('disk4s1');
     await platform.unmount('disk4', wholeDisk: true);

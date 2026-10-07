@@ -1,3 +1,12 @@
+## 1.0.0
+
+- Add raw IMG / USB-compatible hybrid ISO writing with optional read-back verification.
+- Add Windows UEFI installation media preparation, including preflight FAT32 checks and optional oversized WIM splitting with caller-installed wimlib.
+- Add macOS installation media preparation from an Apple-signed installer app.
+- Add typed media stages and progress callbacks; allow system administrator authorization for raw writing and macOS installers.
+- Update both examples, documentation, and explicit opt-in media tests.
+- Require the matching 1.0.0 federated implementation and platform interface.
+
 ## 0.0.2
 
 * Add a runnable macOS example to the public package, including widget and integration tests.

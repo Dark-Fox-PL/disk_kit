@@ -2,9 +2,11 @@ import 'package:plugin_platform_interface/plugin_platform_interface.dart';
 
 import 'src/disk_info.dart';
 import 'src/disk_format.dart';
+import 'src/media_operation_progress.dart';
 
 export 'src/disk_info.dart';
 export 'src/disk_format.dart';
+export 'src/media_operation_progress.dart';
 
 /// Contract implemented by DiskKit's platform packages.
 ///
@@ -102,6 +104,44 @@ abstract class DiskKitPlatform extends PlatformInterface {
     required DiskFileSystem fileSystem,
     required String volumeName,
     DiskPartitionScheme partitionScheme = DiskPartitionScheme.gpt,
+  }) async =>
+      throw _unsupported();
+
+  /// Writes an uncompressed raw IMG or USB-compatible hybrid ISO to a whole disk.
+  /// Erases the disk layout. Ordinary Windows/macOS installer ISOs need their
+  /// dedicated installer methods instead. Verification reads back image bytes.
+  /// macOS can request administrator authorization when [allowElevation] is true.
+  Future<void> writeImage(
+    String diskId, {
+    required String imagePath,
+    bool verify = true,
+    bool allowElevation = true,
+    MediaProgressCallback? onProgress,
+  }) async =>
+      throw _unsupported();
+
+  /// Erases a whole disk and copies a Windows ISO into a FAT32 UEFI layout.
+  /// Oversized install.wim needs a caller-installed wimlib-imagex executable;
+  /// [wimlibPath] overrides the usual Homebrew locations. No legacy BIOS setup.
+  /// [verify] compares copied files and checks split WIM integrity.
+  Future<void> createWindowsInstaller(
+    String diskId, {
+    required String isoPath,
+    String? wimlibPath,
+    bool verify = true,
+    MediaProgressCallback? onProgress,
+  }) async =>
+      throw _unsupported();
+
+  /// Erases a whole disk and runs an Apple-signed installer's createinstallmedia.
+  /// [installerAppPath] names a complete Install macOS .app, not an ISO or DMG.
+  /// macOS can request administrator authorization when [allowElevation] is true.
+  /// Apple's tool controls copying and validation; byte counters are unavailable.
+  Future<void> createMacOSInstaller(
+    String diskId, {
+    required String installerAppPath,
+    bool allowElevation = true,
+    MediaProgressCallback? onProgress,
   }) async =>
       throw _unsupported();
 

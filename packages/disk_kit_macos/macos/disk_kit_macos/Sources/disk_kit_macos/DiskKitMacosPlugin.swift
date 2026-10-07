@@ -37,10 +37,27 @@ private let diskChanged: DADiskDescriptionChangedCallback = { disk, _, context i
   Unmanaged<DiskKitMacosPlugin>.fromOpaque(context).takeUnretainedValue().update(disk)
 }
 
+private let mediaMountApproval: DADiskMountApprovalCallback = { disk, context in
+  guard let context = context, let whole = DADiskCopyWholeDisk(disk),
+    let name = DADiskGetBSDName(whole) else { return nil }
+  let plugin = Unmanaged<DiskKitMacosPlugin>.fromOpaque(context).takeUnretainedValue()
+  guard plugin.rawTargets.contains(String(cString: name)) else { return nil }
+  return Unmanaged.passRetained(DADissenterCreate(kCFAllocatorDefault, DAReturn(kDAReturnBusy),
+    "DiskKit is writing an image." as CFString))
+}
+
+private let keepMediaClaim: DADiskClaimReleaseCallback = { _, _ in
+  Unmanaged.passRetained(DADissenterCreate(kCFAllocatorDefault, DAReturn(kDAReturnBusy),
+    "DiskKit is writing an image." as CFString))
+}
+
 public class DiskKitMacosPlugin: NSObject, FlutterPlugin, FlutterStreamHandler {
   private var session: DASession?
   fileprivate var disks: [String: [String: Any]] = [:]
   private var sink: FlutterEventSink?
+  private var methods: FlutterMethodChannel?
+  fileprivate var rawTargets = Set<String>()
+  private var claimedRawTargets = Set<String>()
   private let worker = DispatchQueue(label: "eu.byfox.disk_kit.fileOperations", qos: .userInitiated)
   // Reject overlapping native requests targeting the same whole disk.
   private var busyDisks = Set<String>()
@@ -51,6 +68,7 @@ public class DiskKitMacosPlugin: NSObject, FlutterPlugin, FlutterStreamHandler {
       name: "eu.byfox.disk_kit/methods", binaryMessenger: registrar.messenger)
     let events = FlutterEventChannel(
       name: "eu.byfox.disk_kit/disks", binaryMessenger: registrar.messenger)
+    instance.methods = methods
     registrar.addMethodCallDelegate(instance, channel: methods)
     events.setStreamHandler(instance)
   }
@@ -64,6 +82,8 @@ public class DiskKitMacosPlugin: NSObject, FlutterPlugin, FlutterStreamHandler {
         session, unsafeBitCast(diskDisappeared, to: UnsafeMutableRawPointer.self), context)
       DAUnregisterCallback(
         session, unsafeBitCast(diskChanged, to: UnsafeMutableRawPointer.self), context)
+      DAUnregisterCallback(
+        session, unsafeBitCast(mediaMountApproval, to: UnsafeMutableRawPointer.self), context)
       DASessionSetDispatchQueue(session, nil)
     }
   }
@@ -79,6 +99,7 @@ public class DiskKitMacosPlugin: NSObject, FlutterPlugin, FlutterStreamHandler {
     DARegisterDiskAppearedCallback(created, nil, diskAppeared, context)
     DARegisterDiskDisappearedCallback(created, nil, diskDisappeared, context)
     DARegisterDiskDescriptionChangedCallback(created, nil, nil, diskChanged, context)
+    DARegisterDiskMountApprovalCallback(created, nil, mediaMountApproval, context)
     DASessionSetDispatchQueue(created, DispatchQueue.main)
     return created
   }
@@ -192,7 +213,7 @@ public class DiskKitMacosPlugin: NSObject, FlutterPlugin, FlutterStreamHandler {
       guard
         [
           "mount", "unmount", "eject", "renameVolume", "copyFromDisk", "copyToDisk", "formatVolume",
-          "formatDisk",
+          "formatDisk", "writeImage", "createWindowsInstaller", "createMacOSInstaller",
         ]
         .contains(call.method)
       else {
@@ -218,6 +239,11 @@ public class DiskKitMacosPlugin: NSObject, FlutterPlugin, FlutterStreamHandler {
       guard !busyDisks.contains(wholeId) else {
         throw DiskKitNativeError(
           code: "disk_busy", message: "Another DiskKit operation is running on this disk.")
+      }
+      if ["writeImage", "createWindowsInstaller", "createMacOSInstaller"].contains(call.method) {
+        try mediaOperation(call.method, args: args, info: info, disk: disk,
+          session: session, result: result)
+        return
       }
       if call.method.hasPrefix("copy") || call.method.hasPrefix("format") {
         try fileOperation(call.method, args: args, info: info, wholeId: wholeId, result: result)
@@ -294,6 +320,121 @@ public class DiskKitMacosPlugin: NSObject, FlutterPlugin, FlutterStreamHandler {
           target, DADiskEjectOptions(kDADiskEjectOptionDefault), operationCompleted, context)
       }
     } catch { result(flutterError(error)) }
+  }
+
+  private func mediaOperation(
+    _ method: String, args: [String: Any], info: [String: Any], disk: DADisk,
+    session: DASession, result: @escaping FlutterResult
+  ) throws {
+    let target = try DiskKitMediaOperations.Target(info: info)
+    guard let operationId = args["operationId"] as? String,
+      let sourcePath = args[method == "writeImage" ? "imagePath"
+        : method == "createWindowsInstaller" ? "isoPath" : "installerAppPath"] as? String else {
+      throw DiskKitNativeError(code: "invalid_arguments", message: "A source path and operation ID are required.")
+    }
+    let source = try DiskKitFileOperations.absoluteURL(sourcePath)
+    // The source and tools must survive whole-disk erasure. Resolve symlinks
+    // before comparing with every mounted partition of the selected device.
+    let roots = disks.values.filter { ($0["wholeDiskId"] as? String) == target.id }
+      .compactMap { $0["volumePath"] as? String }
+    let paths = [source.path] + ((args["wimlibPath"] as? String).map { [$0] } ?? [])
+    for path in paths {
+      let resolved = try DiskKitFileOperations.absoluteURL(path).path
+      if roots.contains(where: { resolved == $0 || resolved.hasPrefix($0 + "/") }) {
+        throw DiskKitNativeError(code: "source_on_target", message: "Store the source and required tools on another disk.")
+      }
+    }
+    let progress: DiskKitMediaOperations.Progress = { [self] stage, bytes, total in
+      DispatchQueue.main.async { [self] in
+        var update: [String: Any] = ["operationId": operationId, "diskId": target.id, "stage": stage]
+        if let bytes = bytes { update["bytesCompleted"] = bytes }
+        if let total = total { update["totalBytes"] = total }
+        methods?.invokeMethod("mediaProgress", arguments: update)
+      }
+    }
+    let finish: (Error?) -> Void = { [self] failure in
+      DispatchQueue.main.async { [self] in
+        rawTargets.remove(target.id)
+        if claimedRawTargets.remove(target.id) != nil { DADiskUnclaim(disk) }
+        busyDisks.remove(target.id)
+        if failure == nil {
+          methods?.invokeMethod("mediaProgress", arguments: [
+            "operationId": operationId, "diskId": target.id, "stage": "completed"])
+        }
+        result(failure.map(flutterError))
+        if let refreshed = try? snapshot() { sink?(refreshed) }
+      }
+    }
+    busyDisks.insert(target.id)
+    progress("preparing", nil, nil)
+    worker.async { [self] in
+      do {
+        try target.check()
+        if method == "writeImage" {
+          let image = try DiskKitMediaOperations.image(source.path, extensions: ["iso", "img"])
+          try DiskKitMediaOperations.validateRawImage(image, capacity: target.size)
+          // Do not unmount or claim until source validation has succeeded.
+          DispatchQueue.main.async { [self] in
+            rawTargets.insert(target.id)
+            progress("unmounting", nil, nil)
+            let unmount = DiskOperation(session: session) { [self] _, dissenter in
+              if let dissenter = dissenter {
+                finish(DiskKitNativeError(code: "operation_failed",
+                  message: DADissenterGetStatusString(dissenter) as String? ?? "Cannot unmount the target.",
+                  details: ["status": DADissenterGetStatus(dissenter)]))
+                return
+              }
+              // Authorize/open before claiming: an authorization helper is a
+              // separate process. Keep mount approval blocked while it opens.
+              worker.async {
+                do {
+                  let device = try DiskKitMediaOperations.openDevice(target,
+                    elevate: args["allowElevation"] as? Bool ?? true, progress: progress)
+                  DispatchQueue.main.async { [self] in
+                    let claim = DiskOperation(session: session) { [self] _, dissenter in
+                      if let dissenter = dissenter {
+                        try? device.close()
+                        finish(DiskKitNativeError(code: "disk_busy",
+                          message: "Cannot claim the target for image writing.",
+                          details: ["status": DADissenterGetStatus(dissenter)]))
+                        return
+                      }
+                      claimedRawTargets.insert(target.id)
+                      worker.async {
+                        do {
+                          try DiskKitMediaOperations.writeImage(image, target: target,
+                            verify: args["verify"] as? Bool ?? true, device: device, progress: progress)
+                          try device.close()
+                          finish(nil)
+                        } catch {
+                          try? device.close()
+                          finish(error)
+                        }
+                      }
+                    }
+                    DADiskClaim(disk, DADiskClaimOptions(kDADiskClaimOptionDefault), keepMediaClaim, nil,
+                      operationCompleted, Unmanaged.passRetained(claim).toOpaque())
+                  }
+                } catch { finish(error) }
+              }
+            }
+            DADiskUnmount(disk, DADiskUnmountOptions(kDADiskUnmountOptionWhole), operationCompleted,
+              Unmanaged.passRetained(unmount).toOpaque())
+          }
+        } else if method == "createWindowsInstaller" {
+          let image = try DiskKitMediaOperations.image(source.path, extensions: ["iso"])
+          try DiskKitMediaOperations.createWindows(image, target: target,
+            wimlibPath: args["wimlibPath"] as? String,
+            verify: args["verify"] as? Bool ?? true, progress: progress)
+          finish(nil)
+        } else {
+          let tool = try DiskKitMediaOperations.installer(source.path)
+          try DiskKitMediaOperations.createMacOS(app: source, tool: tool, target: target,
+            elevate: args["allowElevation"] as? Bool ?? true, progress: progress)
+          finish(nil)
+        }
+      } catch { finish(error) }
+    }
   }
 
   private func fileOperation(
