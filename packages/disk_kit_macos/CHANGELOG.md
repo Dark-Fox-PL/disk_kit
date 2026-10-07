@@ -1,3 +1,5 @@
 ## 0.0.1
 
-* TODO: Describe initial release.
+* Implement Disk Arbitration discovery callbacks and volume operations, with IOKit initial enumeration.
+* Add native file/directory copies and external formatting through diskutil.
+* Add automatic Dart registration, native errors, and a public API example for macOS 12+.

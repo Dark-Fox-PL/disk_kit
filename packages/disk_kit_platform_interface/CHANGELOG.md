@@ -1,3 +1,3 @@
 ## 0.0.1
 
-* TODO: Describe initial release.
+* Introduce the shared DiskKitPlatform contract, DiskInfo model, filesystem options, and partition schemes.

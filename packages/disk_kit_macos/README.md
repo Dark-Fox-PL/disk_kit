@@ -1,19 +1,17 @@
 # disk_kit_macos
 
-macOS platform implementation package for DiskKit. It is intended to provide the macOS side of DiskKit's shared platform interface, using macOS Disk Arbitration for disk-related communication.
+macOS implementation of the federated DiskKit Flutter plugin. Applications should depend on and import `disk_kit`; this package registers automatically.
 
-This package is currently an initial Flutter plugin scaffold. Disk Arbitration integration and disk operations are not implemented yet.
+The plugin uses Disk Arbitration for descriptions, notifications, mounting, unmounting, and ejecting. IOKit enumerates existing IOMedia objects for initial discovery. `FileManager` copies files and directories on a serial background queue. `/usr/sbin/diskutil` performs formatting using explicit process arguments without a shell.
 
-## Requirements
+Requires macOS 12+, Flutter 3.27+, and Dart 3.6+. The first version requires an application outside App Sandbox and does not elevate privileges. Formatting is limited to media identified as external. Operating system restrictions are returned as structured errors.
 
-- macOS
-- Flutter 3.27.0 or later
-- Dart 3.6.0 or later
+The native and Dart method/event channels are `eu.byfox.disk_kit/methods` and `eu.byfox.disk_kit/disks`. Native requests targeting the same containing whole disk are rejected while another DiskKit operation on it is pending.
+
+See the [public API guide](../disk_kit/README.md) and the [example testing guide](example/README.md).
 
 ## Development
 
-The package is part of the [DiskKit workspace](https://github.com/Dark-Fox-PL/disk_kit). From the workspace root, run `flutter pub get` to resolve local workspace packages. The `example/` directory contains the generated plugin example app.
+Run `flutter pub get` from the workspace root. Native filesystem tests can be run independently with `sh tool/test_macos.sh`; they only use temporary files and validate formatting arguments without launching a format operation.
 
-## License
-
-This package is distributed under the MIT License. See [LICENSE](LICENSE).
+[Source and issues](https://github.com/Dark-Fox-PL/disk_kit). Distributed under the [MIT License](LICENSE).

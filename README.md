@@ -1,28 +1,38 @@
-# DiskKit workspace
+# DiskKit
 
-This repository contains the packages that make up DiskKit, a Flutter plugin project for communicating with storage devices through platform APIs.
+A federated Flutter plugin for communicating with storage devices through native platform APIs. The initial implementation targets macOS 12+. Windows and Linux implementations are planned for future releases.
 
-The initial target is macOS, using Disk Arbitration. Windows and Linux are possible future platform implementations. The repository currently contains generated package scaffolds; disk discovery and other disk operations are not implemented yet.
+The plugin supports discovery, device properties, live notifications, mounting, unmounting, ejecting, copying files and directories in both directions, and formatting external disks or volumes. This is an experimental implementation; it has not been published on pub.dev yet.
 
-## Workspace packages
+## Workspace
 
-- [`disk_kit`](packages/disk_kit): app-facing Flutter package.
-- [`disk_kit_platform_interface`](packages/disk_kit_platform_interface): shared contract for platform implementations.
-- [`disk_kit_macos`](packages/disk_kit_macos): macOS plugin implementation.
+- [`disk_kit`](packages/disk_kit): public Dart API and endorsed platform implementation.
+- [`disk_kit_platform_interface`](packages/disk_kit_platform_interface): shared contract and models.
+- [`disk_kit_macos`](packages/disk_kit_macos): Disk Arbitration, IOKit, FileManager, and diskutil implementation.
 
-## Development
+Requires Flutter 3.27+, Dart 3.6+, and Xcode for macOS development. The initial implementation runs outside App Sandbox. It does not elevate privileges.
 
-Requires Dart 3.6.0 or later and Flutter 3.27.0 or later. From the repository root, run:
+## Try it
 
 ```sh
 flutter pub get
+cd packages/disk_kit_macos/example
+flutter run -d macos
 ```
 
-The macOS plugin's generated example app is in `packages/disk_kit_macos/example`.
+Connect a USB drive and use the example to inspect devices and test operations. See the [API documentation](packages/disk_kit/README.md) and [manual testing guide](packages/disk_kit_macos/example/README.md), including copying data off a USB drive, formatting it, and copying the data back.
 
-## Publication
+## Checks
 
-The packages are intended for publication on pub.dev after their public APIs and documentation are ready. Each package is licensed under MIT.
+From the workspace root:
+
+```sh
+flutter analyze
+flutter test packages/disk_kit/test packages/disk_kit_platform_interface/test packages/disk_kit_macos/test
+sh tool/test_macos.sh
+```
+
+The example guide includes widget and native integration test commands. The ordinary checks do not format disks. A separate destructive integration test requires an explicit target and erase flag.
 
 ## License
 

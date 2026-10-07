@@ -1,3 +1,3 @@
 ## 0.0.1
 
-* TODO: Describe initial release.
+* Initial experimental macOS API: discovery, snapshots, mounting, unmounting, ejecting, file/directory copies, and external disk/volume formatting.

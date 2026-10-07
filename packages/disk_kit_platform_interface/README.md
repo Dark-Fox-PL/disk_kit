@@ -1,15 +1,11 @@
 # disk_kit_platform_interface
 
-Shared Flutter platform interface for DiskKit. Platform implementations use this package to provide a consistent contract to the app-facing `disk_kit` package.
+Shared contract and data models for the federated DiskKit Flutter plugin. Applications should use `disk_kit`; platform implementation packages extend `DiskKitPlatform` and install their implementation in `DiskKitPlatform.instance`.
 
-The interface is currently an initial scaffold. Disk discovery, volume details, change notifications, and other operations have not been defined yet.
+The contract covers disk snapshots, live notifications, mounting, unmounting, ejecting, copying files in both directions, and formatting volumes or whole disks. `DiskInfo` represents devices, partitions, and volumes. Unknown native properties remain nullable. `DiskFileSystem` and `DiskPartitionScheme` describe formatting options.
 
-This package is part of the [DiskKit workspace](https://github.com/Dark-Fox-PL/disk_kit). The initial implementation target is macOS; other platform implementations may be added in future releases.
+The default implementation reports `UnsupportedError`. Future Windows and Linux packages can implement the contract independently of the macOS transport.
 
-## Development
+See the [public API guide](../disk_kit/README.md). Run `flutter pub get` from the workspace root before development.
 
-From the workspace root, run `flutter pub get` to resolve local workspace packages.
-
-## License
-
-This package is distributed under the MIT License. See [LICENSE](LICENSE).
+[Source and issues](https://github.com/Dark-Fox-PL/disk_kit). Distributed under the [MIT License](LICENSE).
