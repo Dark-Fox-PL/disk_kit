@@ -2,27 +2,18 @@ import Cocoa
 import FlutterMacOS
 import XCTest
 
-
 @testable import disk_kit_macos
 
-// This demonstrates a simple unit test of the Swift portion of this plugin's implementation.
-//
-// See https://developer.apple.com/documentation/xctest for more information about using XCTest.
-
 class RunnerTests: XCTestCase {
-
-  func testGetPlatformVersion() {
+  func testGetDisks() {
     let plugin = DiskKitMacosPlugin()
-
-    let call = FlutterMethodCall(methodName: "getPlatformVersion", arguments: [])
-
-    let resultExpectation = expectation(description: "result block must be called.")
-    plugin.handle(call) { result in
-      XCTAssertEqual(result as! String,
-                     "macOS " + ProcessInfo.processInfo.operatingSystemVersionString)
-      resultExpectation.fulfill()
+    plugin.handle(FlutterMethodCall(methodName: "getDisks", arguments: nil)) { result in
+      guard let disks = result as? [[String: Any]] else {
+        XCTFail("Expected a disk snapshot, got \(String(describing: result))")
+        return
+      }
+      XCTAssertFalse(disks.isEmpty)
+      XCTAssertNotNil(disks.first?["id"])
     }
-    waitForExpectations(timeout: 1)
   }
-
 }

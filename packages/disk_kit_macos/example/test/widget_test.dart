@@ -1,27 +1,165 @@
-// This is a basic Flutter widget test.
-//
-// To perform an interaction with a widget in your test, use the WidgetTester
-// utility in the flutter_test package. For example, you can send tap and scroll
-// gestures. You can also use WidgetTester to find child widgets in the widget
-// tree, read text, and verify that the values of widget properties are correct.
-
+import 'package:disk_kit_platform_interface/disk_kit_platform_interface.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-
 import 'package:disk_kit_macos_example/main.dart';
 
-void main() {
-  testWidgets('Verify Platform version', (WidgetTester tester) async {
-    // Build our app and trigger a frame.
-    await tester.pumpWidget(const MyApp());
+class FakePlatform extends DiskKitPlatform {
+  final disks = [
+    const DiskInfo(
+      id: 'disk4',
+      devicePath: '/dev/disk4',
+      wholeDiskId: 'disk4',
+      name: 'USB drive',
+      sizeBytes: 64000000000,
+      busProtocol: 'USB',
+      isInternal: false,
+      isWholeDisk: true,
+    ),
+    const DiskInfo(
+      id: 'disk4s1',
+      devicePath: '/dev/disk4s1',
+      wholeDiskId: 'disk4',
+      volumeName: 'EFI',
+      fileSystem: 'msdos',
+      mediaContent: 'EFI',
+      isInternal: false,
+      isWholeDisk: false,
+    ),
+    const DiskInfo(
+      id: 'disk4s2',
+      devicePath: '/dev/disk4s2',
+      wholeDiskId: 'disk4',
+      volumeName: 'USB',
+      volumePath: '/Volumes/USB',
+      isInternal: false,
+      isWholeDisk: false,
+    ),
+    const DiskInfo(
+      id: 'disk0',
+      devicePath: '/dev/disk0',
+      name: 'Internal',
+      isInternal: true,
+      isWholeDisk: true,
+    ),
+  ];
+  List<String>? copied;
+  bool formatted = false;
+  String? formattedDisk;
+  @override
+  Stream<List<DiskInfo>> watchDisks() => Stream.value(disks);
+  @override
+  Future<List<DiskInfo>> getDisks() async => disks;
+  @override
+  Future<void> copyFromDisk(
+    String diskId, {
+    required String relativePath,
+    required String destinationPath,
+  }) async {
+    copied = [diskId, relativePath, destinationPath];
+  }
 
-    // Verify that platform version is retrieved.
-    expect(
-      find.byWidgetPredicate(
-        (Widget widget) =>
-            widget is Text && widget.data!.startsWith('Running on:'),
-      ),
-      findsOneWidget,
-    );
+  @override
+  Future<void> formatVolume(
+    String diskId, {
+    required DiskFileSystem fileSystem,
+    required String volumeName,
+  }) async {
+    formatted = true;
+  }
+
+  @override
+  Future<void> formatDisk(
+    String diskId, {
+    required DiskFileSystem fileSystem,
+    required String volumeName,
+    DiskPartitionScheme partitionScheme = DiskPartitionScheme.gpt,
+  }) async {
+    formattedDisk = diskId;
+  }
+}
+
+void main() {
+  final original = DiskKitPlatform.instance;
+  late FakePlatform platform;
+  setUp(() {
+    platform = FakePlatform();
+    DiskKitPlatform.instance = platform;
+  });
+  tearDown(() => DiskKitPlatform.instance = original);
+
+  testWidgets('renders external disks and hides internal disks by default', (
+    tester,
+  ) async {
+    await tester.pumpWidget(const MyApp());
+    await tester.pumpAndSettle();
+    expect(find.byType(Card), findsOneWidget);
+    expect(find.text('USB drive'), findsOneWidget);
+    expect(find.text('USB'), findsOneWidget);
+    expect(find.text('EFI'), findsNothing);
+    expect(find.text('Internal'), findsNothing);
+    await tester.tap(find.byType(Switch).first);
+    await tester.pumpAndSettle();
+    expect(find.text('Internal'), findsOneWidget);
+  });
+
+  testWidgets('details reveal EFI inside the same device card', (tester) async {
+    await tester.pumpWidget(const MyApp());
+    await tester.pumpAndSettle();
+    expect(find.byKey(const ValueKey('volume-disk4s1')), findsNothing);
+    await tester.tap(find.byType(Switch).at(1));
+    await tester.pumpAndSettle();
+    expect(find.byType(Card), findsOneWidget);
+    final device = find.byKey(const ValueKey('device-disk4'));
+    expect(find.descendant(of: device, matching: find.text('EFI')),
+        findsOneWidget);
+    expect(find.descendant(of: device, matching: find.text('USB')),
+        findsOneWidget);
+    // EFI stays read-only in the example; data-volume operations remain available.
+    final efi = find.byKey(const ValueKey('volume-disk4s1'));
+    expect(find.descendant(of: efi, matching: find.byType(OutlinedButton)),
+        findsNothing);
+  });
+
+  testWidgets('copy dialog forwards both paths', (tester) async {
+    await tester.pumpWidget(const MyApp());
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Copy from disk'));
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byType(TextField).at(0), 'Documents');
+    await tester.enterText(find.byType(TextField).at(1), '/tmp/backup');
+    await tester.tap(find.text('Copy'));
+    await tester.pumpAndSettle();
+    expect(platform.copied, ['disk4s2', 'Documents', '/tmp/backup']);
+  });
+
+  testWidgets('formatting requires explicit target confirmation', (
+    tester,
+  ) async {
+    await tester.pumpWidget(const MyApp());
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Format volume…'));
+    await tester.pumpAndSettle();
+    final erase = find.widgetWithText(FilledButton, 'Erase and format');
+    expect(tester.widget<FilledButton>(erase).onPressed, isNull);
+    await tester.enterText(find.byType(TextField).at(1), 'ERASE disk4s2');
+    await tester.pumpAndSettle();
+    expect(tester.widget<FilledButton>(erase).onPressed, isNotNull);
+    await tester.tap(erase);
+    await tester.pumpAndSettle();
+    expect(platform.formatted, isTrue);
+  });
+
+  testWidgets('device format targets the whole disk rather than its volume',
+      (tester) async {
+    await tester.pumpWidget(const MyApp());
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Format disk…'));
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byType(TextField).at(1), 'ERASE disk4');
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Erase and format'));
+    await tester.pumpAndSettle();
+    expect(platform.formattedDisk, 'disk4');
+    expect(platform.formatted, isFalse);
   });
 }

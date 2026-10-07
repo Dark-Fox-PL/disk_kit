@@ -3,27 +3,28 @@ description: "Demonstrates how to use the disk_kit_macos plugin."
 publish_to: 'none'
 
 environment:
-  sdk: ^3.13.4
+  sdk: ^3.6.0
 
 dependencies:
   flutter:
     sdk: flutter
 
-  disk_kit_macos:
-    path: ../
-
-  cupertino_icons: ^1.0.8
+  disk_kit:
+    path: ../../disk_kit
 
 dev_dependencies:
+  disk_kit_platform_interface: ^0.0.1
   integration_test:
     sdk: flutter
   flutter_test:
     sdk: flutter
 
-  flutter_lints: ^6.0.0
+  flutter_lints: ^5.0.0
 
 # Use the local interface package until it is published.
 dependency_overrides:
+  disk_kit_macos:
+    path: ../
   disk_kit_platform_interface:
     path: ../../disk_kit_platform_interface
 
