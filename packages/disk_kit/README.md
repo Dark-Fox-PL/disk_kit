@@ -265,6 +265,17 @@ The example displays connected external devices and exposes all operations. See 
 
 Source: [GitHub](https://github.com/Dark-Fox-PL/disk_kit). Bugs and proposals: [issues](https://github.com/Dark-Fox-PL/disk_kit/issues).
 
+## Validation of 1.0.0
+
+Unit tests, both example widget suites, and native discovery integration checks
+pass with CocoaPods and Swift Package Manager on Flutter 3.47.5. An explicitly
+authorized physical USB test passed raw writing and read-back comparison of a
+16 MiB synthetic image, Windows MBR/FAT32 preparation from a synthetic ISO,
+file verification, and restoration to a mounted exFAT volume. The fixture does
+not contain an operating system; this is not a boot test. Genuine Windows WIM
+splitting and Apple's full installer still require separate end-to-end tests
+with those sources and compatible hardware.
+
 ## License
 
 Distributed under the [MIT License](LICENSE). Copyright (c) 2026 ByFox.

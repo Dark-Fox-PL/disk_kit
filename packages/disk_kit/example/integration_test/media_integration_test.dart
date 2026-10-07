@@ -131,6 +131,7 @@ void main() {
       final restored = (await kit.getDisks()).singleWhere((disk) =>
           disk.wholeDiskId == current.id && disk.volumeName == volumeName);
       expect(restored.fileSystem, 'exfat');
+      expect(restored.isMounted, isTrue);
       await temporary.delete(recursive: true);
     }
   },
