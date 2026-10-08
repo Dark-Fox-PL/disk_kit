@@ -34,7 +34,7 @@ Or add the package to your app's `pubspec.yaml`:
 
 ```yaml
 dependencies:
-  disk_kit: ^1.1.0
+  disk_kit: ^1.1.1
 ```
 
 Import `package:disk_kit/disk_kit.dart`. The macOS implementation is installed and registered automatically; applications do not need to add `disk_kit_macos` or `disk_kit_platform_interface` directly.
@@ -166,9 +166,22 @@ An exFAT label is limited to 15 UTF-16 units. The initial FAT32 label validation
 
 ## Optional macOS filesystem extensions
 
-[`disk_kit_macos_extensions`](https://github.com/Dark-Fox-PL/disk_kit/tree/main/packages/disk_kit_macos_extensions)
+[`disk_kit_macos_extensions`](https://pub.dev/packages/disk_kit_macos_extensions)
 is a separate optional package. **Add and import it explicitly** to use additional
 filesystem tools; the core DiskKit packages do not depend on it.
+
+```yaml
+dependencies:
+  disk_kit: ^1.1.1
+  disk_kit_macos_extensions: ^0.1.0
+```
+
+```dart
+import 'package:disk_kit/disk_kit.dart';
+import 'package:disk_kit_macos_extensions/disk_kit_macos_extensions.dart';
+```
+
+`disk_kit_macos` is included automatically through `disk_kit`.
 
 Its initial 0.1.0 implementation discovers caller-supplied or separately installed
 macOS builds of `mkntfs` and `mke2fs` for NTFS and ext2/ext3/ext4 formatting of
@@ -178,7 +191,7 @@ The extension does not bundle or install tools or drivers, repartition disks,
 or elevate privileges. Device permissions and compatible third-party filesystem
 support are still required. See its README for setup, API, and limitations.
 
-Version 1.1.0 of the core package continues to format only the native filesystems
+The core package continues to format only the native filesystems
 listed above. Additional filesystem support is provided through the extension's
 separate API.
 

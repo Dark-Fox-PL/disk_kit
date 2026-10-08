@@ -1,3 +1,9 @@
+## 1.1.1
+
+- Document and link the optional `disk_kit_macos_extensions` package on pub.dev, including explicit installation and import examples.
+- Explain external formatter prerequisites and the separation between formatting and mounted-volume access. The extension remains an optional dependency.
+- Documentation-only release; the public API and native platform dependency constraints are unchanged.
+
 ## 1.1.0
 
 - Expose case-sensitive APFS and all four HFS+ variants; update both example format selectors and document the filesystem options.

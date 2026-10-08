@@ -1,6 +1,6 @@
 name: disk_kit
 description: Flutter package providing a cross-platform API for disk management.
-version: 1.1.0
+version: 1.1.1
 homepage: https://byfox.eu
 repository: https://github.com/Dark-Fox-PL/disk_kit/tree/main/packages/disk_kit
 issue_tracker: https://github.com/Dark-Fox-PL/disk_kit/issues
