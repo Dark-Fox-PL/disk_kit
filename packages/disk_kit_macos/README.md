@@ -4,6 +4,8 @@ macOS implementation of the federated DiskKit Flutter plugin. Applications shoul
 
 The plugin uses Disk Arbitration for descriptions, notifications, mounting, unmounting, and ejecting. IOKit enumerates existing IOMedia objects for initial discovery. `FileManager` copies files and directories on a serial background queue. `/usr/sbin/diskutil` performs formatting using explicit process arguments without a shell.
 
+Formatting supports exFAT, FAT32, both case-sensitive and case-insensitive APFS, and all four combinations of HFS+ case sensitivity and journaling. Both APFS variants require GPT for whole-disk formatting.
+
 Requires macOS 12+, Flutter 3.27+, and Dart 3.6+. The plugin requires an application outside App Sandbox. Raw image writing and macOS installer preparation can request administrator authorization through system dialogs; other operations use the host privileges. No persistent privileged helper is installed. Formatting is limited to media identified as external. Operating system restrictions are returned as structured errors.
 
 The native and Dart method/event channels are `eu.byfox.disk_kit/methods` and `eu.byfox.disk_kit/disks`. Native requests targeting the same containing whole disk are rejected while another DiskKit operation on it is pending.

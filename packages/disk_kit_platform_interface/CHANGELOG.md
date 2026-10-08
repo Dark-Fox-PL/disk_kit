@@ -1,3 +1,7 @@
+## Unreleased
+
+- Add `apfsCaseSensitive`, `hfsPlusNonJournaled`, `hfsPlusCaseSensitive`, and `hfsPlusCaseSensitiveJournaled`, plus the `requiresGpt` getter. Preserve the existing `hfsPlus` meaning and enum indexes.
+
 ## 1.0.0
 
 - Add raw IMG / USB-compatible hybrid ISO writing with optional read-back verification.

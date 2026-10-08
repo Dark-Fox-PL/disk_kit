@@ -150,7 +150,7 @@ class DiskKit {
       );
 
   /// Erase an external whole disk, replacing all partitions with one volume.
-  /// All data on every partition is lost. APFS requires GPT.
+  /// All data on every partition is lost. Both APFS variants require GPT.
   /// Refresh disk identifiers before calling; identifiers can be reused.
   /// [diskId] must identify a whole disk. [partitionScheme] defaults to GPT and
   /// [fileSystem] and [volumeName] follow the rules documented on [formatVolume].

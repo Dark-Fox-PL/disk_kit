@@ -98,7 +98,7 @@ abstract class DiskKitPlatform extends PlatformInterface {
   /// Destructively replaces all partitions on the whole disk [diskId].
   /// Create a data volume named [volumeName] with [fileSystem] using
   /// [partitionScheme]. The OS may create additional system partitions.
-  /// macOS requires external media and GPT for APFS; callers confirm deletion.
+  /// macOS requires external media and GPT for both APFS variants; callers confirm deletion.
   Future<void> formatDisk(
     String diskId, {
     required DiskFileSystem fileSystem,

@@ -86,13 +86,17 @@ enum DiskKitFileOperations {
     guard diskId.range(of: "^disk[0-9]+(s[0-9]+)*$", options: .regularExpression) != nil else {
       throw DiskKitNativeError(code: "invalid_arguments", message: "Invalid BSD disk identifier.")
     }
-    let formats = ["exFat": "ExFAT", "fat32": "MS-DOS FAT32", "apfs": "APFS", "hfsPlus": "JHFS+"]
+    let formats = [
+      "exFat": "ExFAT", "fat32": "MS-DOS FAT32", "apfs": "APFS", "hfsPlus": "JHFS+",
+      "apfsCaseSensitive": "APFSX", "hfsPlusNonJournaled": "HFS+",
+      "hfsPlusCaseSensitive": "HFSX", "hfsPlusCaseSensitiveJournaled": "JHFSX",
+    ]
     guard let format = formats[fileSystem] else {
       throw DiskKitNativeError(code: "invalid_arguments", message: "Unsupported filesystem.")
     }
     try validateVolumeName(volumeName, fileSystem: fileSystem)
     if let scheme = scheme {
-      guard ["gpt", "mbr"].contains(scheme), !(fileSystem == "apfs" && scheme == "mbr") else {
+      guard ["gpt", "mbr"].contains(scheme), !(["apfs", "apfsCaseSensitive"].contains(fileSystem) && scheme == "mbr") else {
         throw DiskKitNativeError(
           code: "invalid_arguments", message: "Unsupported partition scheme; APFS requires GPT.")
       }

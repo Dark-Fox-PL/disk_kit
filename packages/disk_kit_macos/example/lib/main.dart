@@ -388,13 +388,21 @@ class _DiskKitExampleState extends State<DiskKitExample> {
                             DiskFileSystem.apfs => 'APFS',
                             DiskFileSystem.hfsPlus =>
                               'HFS+ (Mac OS Extended, Journaled)',
+                            DiskFileSystem.apfsCaseSensitive =>
+                              'APFS (Case-sensitive)',
+                            DiskFileSystem.hfsPlusNonJournaled =>
+                              'HFS+ (Mac OS Extended)',
+                            DiskFileSystem.hfsPlusCaseSensitive =>
+                              'HFS+ (Case-sensitive)',
+                            DiskFileSystem.hfsPlusCaseSensitiveJournaled =>
+                              'HFS+ (Case-sensitive, Journaled)',
                           }),
                         ),
                       )
                       .toList(),
                   onChanged: (value) => update(() {
                     fs = value!;
-                    if (fs == DiskFileSystem.apfs) {
+                    if (fs.requiresGpt) {
                       scheme = DiskPartitionScheme.gpt;
                     }
                   }),
@@ -406,7 +414,7 @@ class _DiskKitExampleState extends State<DiskKitExample> {
                     items: DiskPartitionScheme.values
                         .where(
                           (value) =>
-                              fs != DiskFileSystem.apfs ||
+                              !fs.requiresGpt ||
                               value == DiskPartitionScheme.gpt,
                         )
                         .map(

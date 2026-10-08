@@ -1,3 +1,7 @@
+## Unreleased
+
+- Expose case-sensitive APFS and all four HFS+ variants; update both example format selectors and document the filesystem options.
+
 ## 1.0.2
 
 - Show readable filesystem names in both examples, including HFS+ (Mac OS Extended, Journaled).

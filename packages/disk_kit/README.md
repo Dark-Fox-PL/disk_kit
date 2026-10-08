@@ -14,7 +14,7 @@ DiskKit 1.0 provides disk operations and installation-media preparation. The pac
 - Write uncompressed IMG / USB-compatible hybrid ISO images, with optional read-back verification.
 - Create Windows UEFI installers from ISO, including oversized WIM splitting through caller-installed wimlib.
 - Create macOS installation media from a complete Apple installer app.
-- Format an external volume or an entire external disk as exFAT, FAT32, APFS, or journaled HFS+. Whole-disk formatting supports GPT or MBR; APFS requires GPT.
+- Format an external volume or an entire external disk as exFAT, FAT32, APFS, or HFS+, including case-sensitive APFS and journaled/non-journaled HFS+ variants. Whole-disk formatting supports GPT or MBR; both APFS variants require GPT.
 
 ## Requirements
 
@@ -130,6 +130,23 @@ await kit.eject(wholeDisk.id);
 ```
 
 Formatting is restricted to media positively identified by macOS as external. `formatVolume` requires a partition or volume; `formatDisk` requires a whole disk. APFS containers have additional system constraints; `diskutil` can reject volume-level conversions. Formatting delegates unmounting to `diskutil`; mount and unmount requests do not use force. Callers must confirm destructive operations with their users. DiskKit does not automatically back up or restore files.
+
+Supported formatting options:
+
+| `DiskFileSystem` | Filesystem | Case-sensitive | Journaled | Whole-disk partition scheme |
+| --- | --- | --- | --- | --- |
+| `exFat` | exFAT | No | No | GPT or MBR |
+| `fat32` | FAT32 | No | No | GPT or MBR |
+| `apfs` | APFS | No | Not applicable | GPT |
+| `apfsCaseSensitive` | APFS | Yes | Not applicable | GPT |
+| `hfsPlus` | HFS+ | No | Yes | GPT or MBR |
+| `hfsPlusNonJournaled` | HFS+ | No | No | GPT or MBR |
+| `hfsPlusCaseSensitive` | HFS+ | Yes | No | GPT or MBR |
+| `hfsPlusCaseSensitiveJournaled` | HFS+ | Yes | Yes | GPT or MBR |
+
+`DiskFileSystem.requiresGpt` identifies the two APFS choices. Case-sensitive
+filesystems treat names such as `File.txt` and `file.txt` as different files.
+Encrypted formatting is not exposed by this API.
 
 Select `DiskFileSystem.hfsPlus` for journaled, case-insensitive **HFS+ (Mac OS Extended, Journaled)**:
 

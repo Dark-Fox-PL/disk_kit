@@ -1,3 +1,7 @@
+## Unreleased
+
+- Map the additional APFS/HFS+ variants to native diskutil formats and reject MBR for both APFS variants.
+
 ## 1.0.0
 
 - Add raw IMG / USB-compatible hybrid ISO writing with optional read-back verification.
