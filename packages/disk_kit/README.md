@@ -164,18 +164,23 @@ filesystem option to format a single volume while keeping its partition table.
 
 An exFAT label is limited to 15 UTF-16 units. The initial FAT32 label validation accepts 1–11 uppercase ASCII letters, digits, underscores, or spaces. Other format and size restrictions are enforced by macOS.
 
-## Optional filesystem extensions (planned)
+## Optional macOS filesystem extensions
 
-The core macOS implementation uses the operating system's filesystem tools.
-Additional filesystems are planned as optional packages, for example
-`disk_kit_macos_ntfs_ext` for NTFS. **These extensions are not implemented or
-published yet; version 1.1.0 does not add NTFS, ext4, or Btrfs formatting.**
+[`disk_kit_macos_extensions`](https://github.com/Dark-Fox-PL/disk_kit/tree/main/packages/disk_kit_macos_extensions)
+is a separate optional package. **Add and import it explicitly** to use additional
+filesystem tools; the core DiskKit packages do not depend on it.
 
-The planned extensions will integrate tools supplied by the application or
-installed separately by the user. Their APIs will report formatting, reading,
-and writing capabilities separately: being able to create a filesystem does
-not mean macOS can mount it or copy files onto it. Each extension's documentation
-will describe its required tools, drivers, licenses, and installation steps.
+Its initial 0.1.0 implementation discovers caller-supplied or separately installed
+macOS builds of `mkntfs` and `mke2fs` for NTFS and ext2/ext3/ext4 formatting of
+existing external physical data partitions. It reports formatter availability
+separately from access to mounted volumes. Btrfs formatting remains unavailable.
+The extension does not bundle or install tools or drivers, repartition disks,
+or elevate privileges. Device permissions and compatible third-party filesystem
+support are still required. See its README for setup, API, and limitations.
+
+Version 1.1.0 of the core package continues to format only the native filesystems
+listed above. Additional filesystem support is provided through the extension's
+separate API.
 
 ## Renaming a volume
 

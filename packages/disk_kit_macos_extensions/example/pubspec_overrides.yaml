@@ -1,0 +1,8 @@
+# Local workspace dependencies; excluded from publication.
+dependency_overrides:
+  disk_kit:
+    path: ../../disk_kit
+  disk_kit_macos:
+    path: ../../disk_kit_macos
+  disk_kit_platform_interface:
+    path: ../../disk_kit_platform_interface

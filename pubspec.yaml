@@ -9,3 +9,4 @@ workspace:
   - packages/disk_kit
   - packages/disk_kit_platform_interface
   - packages/disk_kit_macos
+  - packages/disk_kit_macos_extensions

@@ -1,0 +1,19 @@
+name: disk_kit_extensions_example
+description: Read-only discovery of optional DiskKit filesystem tools and volume access.
+publish_to: none
+
+environment:
+  sdk: ^3.6.0
+
+dependencies:
+  flutter:
+    sdk: flutter
+  disk_kit: ^1.1.0
+  disk_kit_macos_extensions:
+    path: ../
+
+dev_dependencies:
+  flutter_lints: ^5.0.0
+
+flutter:
+  uses-material-design: true

@@ -9,6 +9,7 @@ The plugin supports discovery, device properties, live notifications, mounting, 
 - [`disk_kit`](packages/disk_kit): public Dart API and endorsed platform implementation.
 - [`disk_kit_platform_interface`](packages/disk_kit_platform_interface): shared contract and models.
 - [`disk_kit_macos`](packages/disk_kit_macos): Disk Arbitration, IOKit, FileManager, and diskutil implementation.
+- [`disk_kit_macos_extensions`](packages/disk_kit_macos_extensions): optional external filesystem tools; applications add this package explicitly.
 
 Requires Flutter 3.27+, Dart 3.6+, and Xcode for macOS development. The initial implementation runs outside App Sandbox. Raw image writing and macOS installer creation can request administrator authorization through the system dialog.
 
