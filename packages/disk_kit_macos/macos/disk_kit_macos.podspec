@@ -4,7 +4,7 @@
 #
 Pod::Spec.new do |s|
   s.name             = 'disk_kit_macos'
-  s.version          = '1.0.0'
+  s.version          = '1.1.0'
   s.summary          = 'macOS storage operations for DiskKit.'
   s.description      = <<-DESC
 Disk discovery, notifications, mounting, copying and formatting for DiskKit.

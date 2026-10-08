@@ -1,6 +1,8 @@
-## Unreleased
+## 1.1.0
 
 - Expose case-sensitive APFS and all four HFS+ variants; update both example format selectors and document the filesystem options.
+- Require platform interface and macOS implementation 1.1.0 for the additional formatting options.
+- Document the planned optional filesystem extensions; no NTFS, ext4, or Btrfs extension is included in this release.
 
 ## 1.0.2
 

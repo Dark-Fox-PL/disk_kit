@@ -34,7 +34,7 @@ Or add the package to your app's `pubspec.yaml`:
 
 ```yaml
 dependencies:
-  disk_kit: ^1.0.2
+  disk_kit: ^1.1.0
 ```
 
 Import `package:disk_kit/disk_kit.dart`. The macOS implementation is installed and registered automatically; applications do not need to add `disk_kit_macos` or `disk_kit_platform_interface` directly.
@@ -163,6 +163,19 @@ This erases the entire selected external disk. Use `formatVolume` with the same
 filesystem option to format a single volume while keeping its partition table.
 
 An exFAT label is limited to 15 UTF-16 units. The initial FAT32 label validation accepts 1–11 uppercase ASCII letters, digits, underscores, or spaces. Other format and size restrictions are enforced by macOS.
+
+## Optional filesystem extensions (planned)
+
+The core macOS implementation uses the operating system's filesystem tools.
+Additional filesystems are planned as optional packages, for example
+`disk_kit_macos_ntfs_ext` for NTFS. **These extensions are not implemented or
+published yet; version 1.1.0 does not add NTFS, ext4, or Btrfs formatting.**
+
+The planned extensions will integrate tools supplied by the application or
+installed separately by the user. Their APIs will report formatting, reading,
+and writing capabilities separately: being able to create a filesystem does
+not mean macOS can mount it or copy files onto it. Each extension's documentation
+will describe its required tools, drivers, licenses, and installation steps.
 
 ## Renaming a volume
 

@@ -1,4 +1,4 @@
-## Unreleased
+## 1.1.0
 
 - Add `apfsCaseSensitive`, `hfsPlusNonJournaled`, `hfsPlusCaseSensitive`, and `hfsPlusCaseSensitiveJournaled`, plus the `requiresGpt` getter. Preserve the existing `hfsPlus` meaning and enum indexes.
 

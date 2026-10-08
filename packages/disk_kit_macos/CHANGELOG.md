@@ -1,6 +1,7 @@
-## Unreleased
+## 1.1.0
 
 - Map the additional APFS/HFS+ variants to native diskutil formats and reject MBR for both APFS variants.
+- Require platform interface 1.1.0 and update the example format selector.
 
 ## 1.0.0
 
