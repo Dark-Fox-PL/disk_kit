@@ -9,7 +9,7 @@ dependencies:
   flutter:
     sdk: flutter
 
-  disk_kit: ^1.2.0
+  disk_kit: ^1.2.1
 
 dev_dependencies:
   disk_kit_platform_interface: ^2.0.0

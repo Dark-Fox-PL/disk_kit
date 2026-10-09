@@ -34,7 +34,7 @@ Or add the package to your app's `pubspec.yaml`:
 
 ```yaml
 dependencies:
-  disk_kit: ^1.2.0
+  disk_kit: ^1.2.1
 ```
 
 Import `package:disk_kit/disk_kit.dart`. The macOS implementation is installed and registered automatically; applications do not need to add `disk_kit_macos` or `disk_kit_platform_interface` directly.
@@ -116,13 +116,20 @@ other files can still fail, so always await the operation future. These are
 file-boundary events, with no chunk progress, cancellation, checksum verification,
 merging, or overwriting. Media operations below have their own progress and verification options.
 
+On macOS, version 1.2.1 preserves literal AppleDouble `._` companion files in
+both serial and parallel copies. When a literal companion exists, extended
+metadata stays in that file rather than being reserialized into a competing
+destination sidecar. Completion events also require the copied file to exist
+and match its expected size; applications should still verify checksums before
+erasing source data.
+
 ### Migration from 1.1.x
 
 Application calls using `DiskKit.copyFromDisk` and `DiskKit.copyToDisk` remain
 valid. Both methods now use `parallel: true` by default. Pass `parallel: false`
 to use one native file worker; the returned future remains asynchronous.
 
-This release requires `disk_kit_macos` 1.2.0 and
+This release requires `disk_kit_macos` 1.2.1 and
 `disk_kit_platform_interface` 2.0.0. Custom platform implementations and mocks
 that override copying must add `bool parallel = true` and
 `FileCopyProgressCallback? onProgress` to both signatures. Existing callers do
@@ -204,7 +211,7 @@ filesystem tools; the core DiskKit packages do not depend on it.
 
 ```yaml
 dependencies:
-  disk_kit: ^1.2.0
+  disk_kit: ^1.2.1
   disk_kit_macos_extensions: ^0.1.0
 ```
 
@@ -359,14 +366,15 @@ The example displays connected external devices and exposes all operations. See 
 
 Source: [GitHub](https://github.com/Dark-Fox-PL/disk_kit). Bugs and proposals: [issues](https://github.com/Dark-Fox-PL/disk_kit/issues).
 
-## Validation of 1.2.0
+## Validation of 1.2.1
 
 Flutter analysis, the three core Dart test suites, both example widget suites,
 and native filesystem tests pass with the local workspace. The macOS consumer
 application builds and starts with Swift Package Manager on Flutter 3.47.5.
 New nondestructive tests cover bounded/serial copies, per-file events, callback
 cleanup, byte-for-byte results, directory metadata, nested symlinks, failure
-retention, and existing/dangling destinations. No real disk was formatted for
+retention, existing/dangling destinations, and byte-for-byte preservation of
+generated AppleDouble companions in serial and parallel modes. No real disk was formatted for
 this release. Performance depends on the drive and file mix; bounded parallel
 I/O is not a guarantee of higher throughput on all media.
 

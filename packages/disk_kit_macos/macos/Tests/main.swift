@@ -125,6 +125,31 @@ final class FileOperationsTests: XCTestCase {
     XCTAssertEqual(try FileManager.default.destinationOfSymbolicLink(atPath: dangling.path), "missing")
   }
 
+  @objc func testAppleDoubleSidecarsArePreservedLiterally() throws {
+    let source = root.appendingPathComponent("appledouble-source")
+    try FileManager.default.createDirectory(at: source, withIntermediateDirectories: false)
+    let main = source.appendingPathComponent("file.txt")
+    try Data("ordinary user data".utf8).write(to: main)
+    let attribute = Data("test metadata".utf8)
+    let status = attribute.withUnsafeBytes { bytes in
+      setxattr(main.path, "com.byfox.disk-kit-test", bytes.baseAddress,
+        bytes.count, 0, 0)
+    }
+    XCTAssertEqual(status, 0)
+    let sidecar = source.appendingPathComponent("._file.txt")
+    XCTAssertEqual(copyfile(main.path, sidecar.path, nil,
+      copyfile_flags_t(COPYFILE_XATTR | COPYFILE_PACK | COPYFILE_EXCL)), 0)
+    let expected = try Data(contentsOf: sidecar)
+    XCTAssertFalse(expected.isEmpty)
+    for parallel in [true, false] {
+      let destination = root.appendingPathComponent(parallel ? "appledouble-parallel" : "appledouble-serial")
+      try DiskKitFileOperations.copy(source: source, destination: destination, parallel: parallel)
+      XCTAssertEqual(try Data(contentsOf: destination.appendingPathComponent("file.txt")),
+        Data("ordinary user data".utf8))
+      XCTAssertEqual(try Data(contentsOf: destination.appendingPathComponent("._file.txt")), expected)
+    }
+  }
+
   @objc func testVolumeRenameLabels() throws {
     try DiskKitFileOperations.validateVolumeName("NEW_USB", fileSystem: "exfat")
     try DiskKitFileOperations.validateVolumeName("USB", fileSystem: "msdos")
@@ -279,7 +304,7 @@ final class FileOperationsTests: XCTestCase {
 
 let suite = XCTestSuite(forTestCaseClass: FileOperationsTests.self)
 suite.run()
-guard let run = suite.testRun, run.executionCount == 14 else {
-  fatalError("Expected fourteen native tests.")
+guard let run = suite.testRun, run.executionCount == 15 else {
+  fatalError("Expected fifteen native tests.")
 }
 exit(run.totalFailureCount == 0 ? 0 : 1)

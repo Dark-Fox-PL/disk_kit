@@ -1,6 +1,6 @@
 name: disk_kit_macos
 description: macOS platform implementation for DiskKit using native macOS APIs.
-version: 1.2.0
+version: 1.2.1
 homepage: https://byfox.eu
 repository: https://github.com/Dark-Fox-PL/disk_kit/tree/main/packages/disk_kit_macos
 issue_tracker: https://github.com/Dark-Fox-PL/disk_kit/issues

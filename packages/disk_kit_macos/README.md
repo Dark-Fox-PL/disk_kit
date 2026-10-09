@@ -2,7 +2,7 @@
 
 macOS implementation of the federated DiskKit Flutter plugin. Applications should depend on and import `disk_kit`; this package registers automatically.
 
-The plugin uses Disk Arbitration for descriptions, notifications, mounting, unmounting, and ejecting. IOKit enumerates existing IOMedia objects for initial discovery. `FileManager` copies files on a background queue, with up to four file workers per copy by default (`parallel: false` uses one). Independent disks can operate concurrently; the containing disk stays exclusively leased until every worker finishes, including on failure. Directory metadata is applied after descendants and nested symlinks are preserved. `/usr/sbin/diskutil` performs formatting using explicit process arguments without a shell.
+The plugin uses Disk Arbitration for descriptions, notifications, mounting, unmounting, and ejecting. IOKit enumerates existing IOMedia objects for initial discovery. `FileManager` copies files on a background queue, with up to four file workers per copy by default (`parallel: false` uses one). Independent disks can operate concurrently; the containing disk stays exclusively leased until every worker finishes, including on failure. Directory metadata is applied after descendants and nested symlinks are preserved. Version 1.2.1 enumerates directories through POSIX so Foundation cannot silently hide AppleDouble `._` companions; these files are copied literally. When an item has a literal `._` companion, its extended metadata remains in that companion rather than being reserialized into a competing destination sidecar. Ordinary items without companions retain native metadata copying. `/usr/sbin/diskutil` performs formatting using explicit process arguments without a shell.
 
 Formatting supports exFAT, FAT32, both case-sensitive and case-insensitive APFS, and all four combinations of HFS+ case sensitivity and journaling. Both APFS variants require GPT for whole-disk formatting.
 
@@ -18,7 +18,7 @@ The entire operation can still fail on another file or directory metadata, so
 always await its future. There is no chunk progress, in-flight cancellation,
 merging, overwriting or checksum verification. Partial output is retained on
 failure. Callback errors are reported through Flutter without interrupting
-native copying. Version 1.2.0 requires platform interface 2.0.0.
+native copying. Version 1.2.1 requires platform interface 2.0.0.
 
 See the [public API guide](https://github.com/Dark-Fox-PL/disk_kit/blob/main/packages/disk_kit/README.md) and the [example testing guide](https://github.com/Dark-Fox-PL/disk_kit/blob/main/packages/disk_kit_macos/example/README.md).
 

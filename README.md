@@ -2,7 +2,7 @@
 
 A federated Flutter plugin for communicating with storage devices through native platform APIs. The initial implementation targets macOS 12+. Windows and Linux implementations are planned for future releases.
 
-The plugin supports discovery, device properties, live notifications, mounting, unmounting, ejecting, renaming volumes, copying files and directories in both directions, formatting external disks or volumes, writing raw images, and preparing Windows UEFI or macOS installation media. The package is published on [pub.dev](https://pub.dev/packages/disk_kit). Version 1.2.0 adds bounded parallel file copying (enabled by default) and file start/completion callbacks. The matching platform interface is 2.0.0; custom platform implementations must update their copy-method overrides.
+The plugin supports discovery, device properties, live notifications, mounting, unmounting, ejecting, renaming volumes, copying files and directories in both directions, formatting external disks or volumes, writing raw images, and preparing Windows UEFI or macOS installation media. The package is published on [pub.dev](https://pub.dev/packages/disk_kit). Version 1.2.1 fixes preservation of AppleDouble `._` companion files on macOS. Version 1.2.0 adds bounded parallel file copying (enabled by default) and file start/completion callbacks. The matching platform interface is 2.0.0; custom platform implementations must update their copy-method overrides.
 
 ## Workspace
 

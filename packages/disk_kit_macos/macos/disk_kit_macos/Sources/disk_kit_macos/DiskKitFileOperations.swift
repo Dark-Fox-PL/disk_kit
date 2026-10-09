@@ -49,6 +49,38 @@ enum DiskKitFileOperations {
     }
   }
 
+  /// Foundation directory enumeration suppresses recognized AppleDouble
+  /// companions. A file-backup API must enumerate them as literal user files.
+  static func directoryEntries(_ directory: URL) throws -> [URL] {
+    guard let stream = opendir(directory.path) else {
+      throw NSError(domain: NSPOSIXErrorDomain, code: Int(errno),
+        userInfo: [NSFilePathErrorKey: directory.path])
+    }
+    defer { closedir(stream) }
+    var entries: [URL] = []
+    errno = 0
+    while let entry = readdir(stream) {
+      let name = withUnsafePointer(to: &entry.pointee.d_name) {
+        String(cString: UnsafeRawPointer($0).assumingMemoryBound(to: CChar.self))
+      }
+      if name != "." && name != ".." { entries.append(directory.appendingPathComponent(name)) }
+      errno = 0
+    }
+    guard errno == 0 else {
+      throw NSError(domain: NSPOSIXErrorDomain, code: Int(errno),
+        userInfo: [NSFilePathErrorKey: directory.path])
+    }
+    return entries
+  }
+
+  /// Preserve literal companion bytes instead of reserializing the same
+  /// metadata into an automatically generated destination AppleDouble file.
+  static func hasLiteralCompanion(_ source: URL) -> Bool {
+    let companion = source.deletingLastPathComponent()
+      .appendingPathComponent("._" + source.lastPathComponent)
+    return (try? FileManager.default.attributesOfItem(atPath: companion.path)) != nil
+  }
+
   /// No merge or overwrite. Bounded file workers preserve directory metadata.
   static func copy(source: URL, destination: URL, parallel: Bool = true,
     progress: @escaping (String, Int64, Bool) -> Void = { _, _, _ in }) throws {
@@ -84,8 +116,7 @@ enum DiskKitFileOperations {
       if attributes[.type] as? FileAttributeType == .typeDirectory {
         try FileManager.default.createDirectory(at: output, withIntermediateDirectories: false)
         directories.append((input, output))
-        for child in try FileManager.default.contentsOfDirectory(at: input,
-            includingPropertiesForKeys: nil) {
+        for child in try directoryEntries(input) {
           try walk(child, output.appendingPathComponent(child.lastPathComponent))
         }
       } else {
@@ -98,7 +129,22 @@ enum DiskKitFileOperations {
             try state.check()
             let bytes = (attributes[.size] as? NSNumber)?.int64Value ?? 0
             progress(input.path, bytes, false)
-            try FileManager.default.copyItem(at: input, to: output)
+            if attributes[.type] as? FileAttributeType == .typeRegular,
+              input.lastPathComponent.hasPrefix("._") || hasLiteralCompanion(input) {
+              let flags = copyfile_flags_t(COPYFILE_DATA | COPYFILE_STAT | COPYFILE_EXCL | COPYFILE_NOFOLLOW)
+              if copyfile(input.path, output.path, nil, flags) != 0 {
+                throw NSError(domain: NSPOSIXErrorDomain, code: Int(errno),
+                  userInfo: [NSFilePathErrorKey: output.path])
+              }
+            } else {
+              try FileManager.default.copyItem(at: input, to: output)
+            }
+            let copied = try FileManager.default.attributesOfItem(atPath: output.path)
+            if attributes[.type] as? FileAttributeType == .typeRegular,
+              (copied[.size] as? NSNumber)?.int64Value != bytes {
+              throw DiskKitNativeError(code: "io_failed", message: "The copied file size changed.",
+                details: ["sourcePath": input.path, "destinationPath": output.path])
+            }
             progress(input.path, bytes, true)
           } catch { state.fail(error) }
         }
@@ -110,7 +156,8 @@ enum DiskKitFileOperations {
     // Apply directory metadata after descendants, retaining nested symlinks and
     // FileManager file-copy behavior while permitting independent file I/O.
     for (input, output) in directories.reversed() {
-      if copyfile(input.path, output.path, nil, copyfile_flags_t(COPYFILE_METADATA)) != 0 {
+      let flags = copyfile_flags_t(hasLiteralCompanion(input) ? COPYFILE_STAT : COPYFILE_METADATA)
+      if copyfile(input.path, output.path, nil, flags) != 0 {
         throw NSError(domain: NSPOSIXErrorDomain, code: Int(errno),
           userInfo: [NSFilePathErrorKey: output.path])
       }

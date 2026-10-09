@@ -1,3 +1,9 @@
+## 1.2.1
+
+- Preserve AppleDouble `._` companion files during recursive copies. Use POSIX directory enumeration because Foundation silently hides recognized companions, causing literal backup inventories to lose files even when copy calls succeed.
+- Avoid reserializing native extended attributes when a literal AppleDouble companion is present, so restoring to filesystems without native xattrs does not create a competing companion. Metadata remains in the preserved sidecar. Verify copied file existence and size before emitting completion.
+- Add native regression coverage with generated AppleDouble metadata in both serial and parallel modes.
+
 ## 1.2.0
 
 - Copy directories with at most four concurrent file workers by default; `parallel: false` uses one worker. Run independent disk operations on a concurrent background queue while preserving per-disk exclusion.

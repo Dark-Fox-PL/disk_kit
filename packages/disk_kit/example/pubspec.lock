@@ -47,14 +47,14 @@ packages:
       path: ".."
       relative: true
     source: path
-    version: "1.2.0"
+    version: "1.2.1"
   disk_kit_macos:
     dependency: "direct overridden"
     description:
       path: "../../disk_kit_macos"
       relative: true
     source: path
-    version: "1.2.0"
+    version: "1.2.1"
   disk_kit_platform_interface:
     dependency: "direct dev"
     description:

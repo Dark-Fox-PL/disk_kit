@@ -1,3 +1,9 @@
+## 1.2.1
+
+- Require macOS implementation 1.2.1, which preserves literal AppleDouble `._` companion files in serial and parallel recursive copies.
+- Prevent extended-attribute copying from generating competing sidecars when literal companions are present, and check destination file size before reporting completion.
+- Public Dart API and platform interface 2.0.0 remain unchanged.
+
 ## 1.2.0
 
 - Add `parallel` (default `true`) and optional `FileCopyProgressCallback` to both file-copy methods. Existing application calls remain valid.
