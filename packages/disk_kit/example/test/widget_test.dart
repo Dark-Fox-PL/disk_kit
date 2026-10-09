@@ -85,6 +85,8 @@ class FakePlatform extends DiskKitPlatform {
     String diskId, {
     required String relativePath,
     required String destinationPath,
+    bool parallel = true,
+    FileCopyProgressCallback? onProgress,
   }) async {
     copied = [diskId, relativePath, destinationPath];
   }

@@ -1,4 +1,5 @@
 import Foundation
+import Darwin
 
 struct DiskKitNativeError: Error {
   let code: String
@@ -41,8 +42,23 @@ enum DiskKitFileOperations {
     return resolved
   }
 
-  /// No merge or overwrite. FileManager recursively copies directories.
-  static func copy(source: URL, destination: URL) throws {
+  /// Check the requested path before resolving a dangling final symlink.
+  static func requireNewDestination(_ destination: URL) throws {
+    guard (try? FileManager.default.attributesOfItem(atPath: destination.path)) == nil else {
+      throw DiskKitNativeError(code: "destination_exists", message: "The destination already exists.")
+    }
+  }
+
+  /// No merge or overwrite. Bounded file workers preserve directory metadata.
+  static func copy(source: URL, destination: URL, parallel: Bool = true,
+    progress: @escaping (String, Int64, Bool) -> Void = { _, _, _ in }) throws {
+    guard (destination.path as NSString).isAbsolutePath, !destination.path.contains("\0") else {
+      throw DiskKitNativeError(code: "invalid_path", message: "An absolute local path is required.")
+    }
+    // Refuse a dangling link too, before resolving its missing target.
+    guard (try? FileManager.default.attributesOfItem(atPath: destination.path)) == nil else {
+      throw DiskKitNativeError(code: "destination_exists", message: "The destination already exists.")
+    }
     let source = try absoluteURL(source.path)
     let destination = try absoluteURL(destination.path)
     guard destination != source, source.path != "/", !destination.path.hasPrefix(source.path + "/")
@@ -50,11 +66,55 @@ enum DiskKitFileOperations {
       throw DiskKitNativeError(
         code: "invalid_path", message: "The destination cannot be inside the source.")
     }
-    guard !FileManager.default.fileExists(atPath: destination.path) else {
+    guard (try? FileManager.default.attributesOfItem(atPath: destination.path)) == nil else {
       throw DiskKitNativeError(
         code: "destination_exists", message: "The destination already exists.")
     }
-    try FileManager.default.copyItem(at: source, to: destination)
+    // One disk lease covers the complete copy, including all worker completion.
+    // Bound outstanding work rather than queuing the entire drive in memory.
+    let state = CopyState()
+    let slots = DispatchSemaphore(value: parallel ? 4 : 1)
+    let group = DispatchGroup()
+    let queue = DispatchQueue(label: "eu.byfox.disk_kit.copy", qos: .userInitiated,
+      attributes: .concurrent)
+    var directories: [(URL, URL)] = []
+    func walk(_ input: URL, _ output: URL) throws {
+      try state.check()
+      let attributes = try FileManager.default.attributesOfItem(atPath: input.path)
+      if attributes[.type] as? FileAttributeType == .typeDirectory {
+        try FileManager.default.createDirectory(at: output, withIntermediateDirectories: false)
+        directories.append((input, output))
+        for child in try FileManager.default.contentsOfDirectory(at: input,
+            includingPropertiesForKeys: nil) {
+          try walk(child, output.appendingPathComponent(child.lastPathComponent))
+        }
+      } else {
+        slots.wait()
+        do { try state.check() } catch { slots.signal(); throw error }
+        group.enter()
+        queue.async {
+          defer { slots.signal(); group.leave() }
+          do {
+            try state.check()
+            let bytes = (attributes[.size] as? NSNumber)?.int64Value ?? 0
+            progress(input.path, bytes, false)
+            try FileManager.default.copyItem(at: input, to: output)
+            progress(input.path, bytes, true)
+          } catch { state.fail(error) }
+        }
+      }
+    }
+    do { try walk(source, destination) } catch { state.fail(error) }
+    group.wait()
+    try state.check()
+    // Apply directory metadata after descendants, retaining nested symlinks and
+    // FileManager file-copy behavior while permitting independent file I/O.
+    for (input, output) in directories.reversed() {
+      if copyfile(input.path, output.path, nil, copyfile_flags_t(COPYFILE_METADATA)) != 0 {
+        throw NSError(domain: NSPOSIXErrorDomain, code: Int(errno),
+          userInfo: [NSFilePathErrorKey: output.path])
+      }
+    }
   }
 
   /// Validates both formatting labels and native filesystem rename requests.
@@ -125,5 +185,18 @@ enum DiskKitFileOperations {
         details: ["exitCode": process.terminationStatus]
       )
     }
+  }
+}
+
+private final class CopyState {
+  private let lock = NSLock()
+  private var failure: Error?
+  func fail(_ error: Error) {
+    lock.lock(); defer { lock.unlock() }
+    if failure == nil { failure = error }
+  }
+  func check() throws {
+    lock.lock(); defer { lock.unlock() }
+    if let error = failure { throw error }
   }
 }

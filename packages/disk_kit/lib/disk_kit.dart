@@ -8,6 +8,8 @@ import 'package:disk_kit_platform_interface/disk_kit_platform_interface.dart';
 
 export 'package:disk_kit_platform_interface/disk_kit_platform_interface.dart'
     show
+        FileCopyProgress,
+        FileCopyProgressCallback,
         DiskInfo,
         DiskFileSystem,
         DiskPartitionScheme,
@@ -96,16 +98,22 @@ class DiskKit {
   /// `.` selects the root itself. [destinationPath] must be an absolute local path.
   /// Volume traversal outside the mount point is rejected with `invalid_path`.
   /// Other failures include `volume_not_mounted`, `destination_exists`, and
-  /// `io_failed`. There is no progress, cancellation, or checksum verification.
+  /// `io_failed`. File events report paths and completed file sizes, not chunk progress.
+  /// [parallel] defaults to true and permits up to four concurrent file copies.
+  /// There is no cancellation or checksum verification.
   Future<void> copyFromDisk(
     String diskId, {
     required String relativePath,
     required String destinationPath,
+    bool parallel = true,
+    FileCopyProgressCallback? onProgress,
   }) =>
       DiskKitPlatform.instance.copyFromDisk(
         diskId,
         relativePath: relativePath,
         destinationPath: destinationPath,
+        parallel: parallel,
+        onProgress: onProgress,
       );
 
   /// Copy an absolute local file/directory into a mounted volume.
@@ -115,15 +123,19 @@ class DiskKit {
   /// Symlinks inside copied directories are preserved. Unsupported metadata,
   /// insufficient space, permissions, or filename restrictions can cause
   /// `io_failed`; failed copies can leave partial data. The same path restrictions
-  /// and absence of progress/cancellation as [copyFromDisk] apply.
+  /// and cancellation limitations as [copyFromDisk] apply.
   Future<void> copyToDisk(
     String diskId, {
     required String sourcePath,
+    bool parallel = true,
+    FileCopyProgressCallback? onProgress,
     required String relativePath,
   }) =>
       DiskKitPlatform.instance.copyToDisk(
         diskId,
         sourcePath: sourcePath,
+        parallel: parallel,
+        onProgress: onProgress,
         relativePath: relativePath,
       );
 

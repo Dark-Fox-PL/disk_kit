@@ -12,6 +12,20 @@ class MethodChannelDiskKitMacos extends DiskKitPlatform {
     if (_progressHandlerInstalled) return;
     _progressHandlerInstalled = true;
     methodChannel.setMethodCallHandler((call) async {
+      if (call.method == 'fileCopyProgress') {
+        final data = Map<Object?, Object?>.from(call.arguments as Map);
+        try {
+          _copyProgress[data['operationId']]
+              ?.call(FileCopyProgress.fromMap(data));
+        } catch (error, stack) {
+          FlutterError.reportError(FlutterErrorDetails(
+              exception: error,
+              stack: stack,
+              library: 'disk_kit_macos',
+              context: ErrorDescription('while reporting file-copy progress')));
+        }
+        return;
+      }
       if (call.method != 'mediaProgress') return;
       final data = Map<Object?, Object?>.from(call.arguments as Map);
       final callback = _progress[data['operationId']];
@@ -31,6 +45,7 @@ class MethodChannelDiskKitMacos extends DiskKitPlatform {
     });
   }
 
+  final _copyProgress = <String, FileCopyProgressCallback>{};
   final _progress = <String, MediaProgressCallback>{};
   static int _nextOperation = 0;
 
@@ -74,22 +89,53 @@ class MethodChannelDiskKitMacos extends DiskKitPlatform {
     String diskId, {
     required String relativePath,
     required String destinationPath,
+    bool parallel = true,
+    FileCopyProgressCallback? onProgress,
   }) =>
-      _operate<void>('copyFromDisk', diskId, arguments: {
-        'relativePath': relativePath,
-        'localPath': destinationPath,
-      });
+      _copyOperation(
+          'copyFromDisk',
+          diskId,
+          {
+            'relativePath': relativePath,
+            'localPath': destinationPath,
+            'parallel': parallel,
+          },
+          onProgress);
 
   @override
   Future<void> copyToDisk(
     String diskId, {
     required String sourcePath,
+    bool parallel = true,
+    FileCopyProgressCallback? onProgress,
     required String relativePath,
   }) =>
-      _operate<void>('copyToDisk', diskId, arguments: {
-        'relativePath': relativePath,
-        'localPath': sourcePath,
-      });
+      _copyOperation(
+          'copyToDisk',
+          diskId,
+          {
+            'relativePath': relativePath,
+            'localPath': sourcePath,
+            'parallel': parallel,
+          },
+          onProgress);
+
+  Future<void> _copyOperation(
+      String method,
+      String diskId,
+      Map<String, Object?> arguments,
+      FileCopyProgressCallback? callback) async {
+    _installProgressHandler();
+    final operationId =
+        '${DateTime.now().microsecondsSinceEpoch}-${_nextOperation++}';
+    if (callback != null) _copyProgress[operationId] = callback;
+    try {
+      await _operate<void>(method, diskId,
+          arguments: {...arguments, 'operationId': operationId});
+    } finally {
+      _copyProgress.remove(operationId);
+    }
+  }
 
   @override
   Future<void> formatVolume(

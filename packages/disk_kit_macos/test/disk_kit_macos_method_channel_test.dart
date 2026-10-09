@@ -97,6 +97,44 @@ void main() {
     expect(updates.single.fraction, 0.5);
   });
 
+  test('copy options and file events reach only the active callback', () async {
+    final updates = <FileCopyProgress>[];
+    String? operationId;
+    Future<void> emit(String id) async {
+      // ignore: deprecated_member_use
+      await messenger.handlePlatformMessage(
+          methods.name,
+          const StandardMethodCodec()
+              .encodeMethodCall(MethodCall('fileCopyProgress', {
+            'operationId': id,
+            'path': '/Volumes/USB/a.txt',
+            'bytes': 12,
+            'completed': true,
+          })),
+          (_) {});
+    }
+
+    messenger.setMockMethodCallHandler(methods, (call) async {
+      final args = call.arguments as Map;
+      expect(args['parallel'], isFalse);
+      operationId = args['operationId'] as String;
+      await emit('other-operation');
+      await emit(operationId!);
+      return null;
+    });
+    await platform.copyFromDisk('disk4s1',
+        relativePath: 'a.txt',
+        destinationPath: '/tmp/a.txt',
+        parallel: false,
+        onProgress: updates.add);
+    expect(updates.single.path, '/Volumes/USB/a.txt');
+    expect(updates.single.bytes, 12);
+    expect(updates.single.completed, isTrue);
+    await emit(operationId!);
+    expect(updates.length, 1,
+        reason: 'Callbacks are removed when the future finishes');
+  });
+
   test('serializes all operation arguments', () async {
     await platform.mount('disk4s1');
     await platform.unmount('disk4', wholeDisk: true);
@@ -121,10 +159,20 @@ void main() {
       'formatDisk'
     ]);
     expect(calls[1].arguments, {'diskId': 'disk4', 'wholeDisk': true});
-    expect(calls[3].arguments,
-        {'diskId': 'disk4s1', 'relativePath': 'a', 'localPath': '/tmp/b'});
-    expect(calls[4].arguments,
-        {'diskId': 'disk4s1', 'relativePath': 'a', 'localPath': '/tmp/b'});
+    expect(calls[3].arguments, {
+      'diskId': 'disk4s1',
+      'relativePath': 'a',
+      'localPath': '/tmp/b',
+      'parallel': true,
+      'operationId': isA<String>()
+    });
+    expect(calls[4].arguments, {
+      'diskId': 'disk4s1',
+      'relativePath': 'a',
+      'localPath': '/tmp/b',
+      'parallel': true,
+      'operationId': isA<String>()
+    });
     expect(calls[5].arguments,
         {'diskId': 'disk4s1', 'fileSystem': 'exFat', 'volumeName': 'USB'});
     expect(calls[6].arguments, {

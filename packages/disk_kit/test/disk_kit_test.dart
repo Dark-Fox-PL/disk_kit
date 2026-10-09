@@ -4,6 +4,7 @@ import 'package:flutter_test/flutter_test.dart';
 
 class FakePlatform extends DiskKitPlatform {
   final calls = <List<Object?>>[];
+  bool? lastCopyParallel;
   static const disk = DiskInfo(id: 'disk4', devicePath: '/dev/disk4');
   @override
   Future<List<DiskInfo>> getDisks() async => [disk];
@@ -37,13 +38,22 @@ class FakePlatform extends DiskKitPlatform {
 
   @override
   Future<void> copyFromDisk(String diskId,
-      {required String relativePath, required String destinationPath}) async {
+      {required String relativePath,
+      required String destinationPath,
+      bool parallel = true,
+      FileCopyProgressCallback? onProgress}) async {
+    lastCopyParallel = parallel;
+    onProgress?.call(
+        const FileCopyProgress(path: 'a.txt', bytes: 12, completed: true));
     calls.add(['copyFromDisk', diskId, relativePath, destinationPath]);
   }
 
   @override
   Future<void> copyToDisk(String diskId,
-      {required String sourcePath, required String relativePath}) async {
+      {required String sourcePath,
+      required String relativePath,
+      bool parallel = true,
+      FileCopyProgressCallback? onProgress}) async {
     calls.add(['copyToDisk', diskId, sourcePath, relativePath]);
   }
 
@@ -141,6 +151,21 @@ void main() {
                 diskId: 'disk4', stage: MediaOperationStage.authorizing)
             .fraction,
         isNull);
+  });
+
+  test('public API forwards the parallel copy preference and file progress',
+      () async {
+    final updates = <FileCopyProgress>[];
+    await const DiskKit().copyFromDisk('disk4s1',
+        relativePath: 'a.txt',
+        destinationPath: '/tmp/a.txt',
+        parallel: false,
+        onProgress: updates.add);
+    expect(platform.lastCopyParallel, isFalse);
+    expect(updates.single.bytes, 12);
+    await const DiskKit().copyFromDisk('disk4s1',
+        relativePath: 'a.txt', destinationPath: '/tmp/a.txt');
+    expect(platform.lastCopyParallel, isTrue);
   });
 
   test('public API exposes discovery and snapshots', () async {

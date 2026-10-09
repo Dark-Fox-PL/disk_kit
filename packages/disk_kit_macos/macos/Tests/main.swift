@@ -59,6 +59,72 @@ final class FileOperationsTests: XCTestCase {
         atPath: destination.appendingPathComponent("link").path), "../outside")
   }
 
+  @objc func testParallelCopyIsBoundedAndReportsEveryFile() throws {
+    let source = root.appendingPathComponent("source")
+    try FileManager.default.createDirectory(at: source, withIntermediateDirectories: false)
+    for index in 0..<24 {
+      try Data(repeating: UInt8(index), count: 65536).write(to: source.appendingPathComponent("file-\(index)"))
+    }
+    for parallel in [true, false] {
+      let lock = NSLock()
+      var active = 0
+      var maximum = 0
+      var completed = Set<String>()
+      var bytes: Int64 = 0
+      let destination = root.appendingPathComponent(parallel ? "parallel" : "serial")
+      try DiskKitFileOperations.copy(source: source, destination: destination, parallel: parallel,
+        progress: { path, size, done in
+          lock.lock()
+          if done { active -= 1; completed.insert(path); bytes += size }
+          else { active += 1; maximum = max(maximum, active) }
+          lock.unlock()
+          if !done { Thread.sleep(forTimeInterval: 0.005) }
+        })
+      XCTAssertEqual(active, 0)
+      XCTAssertEqual(completed.count, 24)
+      XCTAssertEqual(bytes, 24 * 65536)
+      XCTAssertLessThanOrEqual(maximum, parallel ? 4 : 1)
+      if parallel { XCTAssertGreaterThan(maximum, 1) }
+      for index in 0..<24 {
+        XCTAssertEqual(try Data(contentsOf: destination.appendingPathComponent("file-\(index)")),
+          Data(repeating: UInt8(index), count: 65536))
+      }
+    }
+  }
+
+  @objc func testCopyFailureStopsWorkAndRetainsPartialDestination() throws {
+    let source = root.appendingPathComponent("source")
+    try FileManager.default.createDirectory(at: source, withIntermediateDirectories: false)
+    try Data("data".utf8).write(to: source.appendingPathComponent("file"))
+    let destination = root.appendingPathComponent("partial")
+    var reportedComplete = false
+    XCTAssertThrowsError(try DiskKitFileOperations.copy(source: source, destination: destination,
+      parallel: false, progress: { path, _, done in
+        if done { reportedComplete = true }
+        else { try! FileManager.default.removeItem(atPath: path) }
+      }))
+    XCTAssertFalse(reportedComplete)
+    XCTAssertTrue(FileManager.default.fileExists(atPath: destination.path))
+    XCTAssertThrowsError(try DiskKitFileOperations.copy(source: source, destination: destination))
+  }
+
+  @objc func testDirectoryMetadataAndDanglingDestination() throws {
+    let source = root.appendingPathComponent("source")
+    try FileManager.default.createDirectory(at: source, withIntermediateDirectories: false)
+    let date = Date(timeIntervalSince1970: 1600000000)
+    try FileManager.default.setAttributes([.modificationDate: date, .posixPermissions: 0o750], ofItemAtPath: source.path)
+    let destination = root.appendingPathComponent("copy")
+    try DiskKitFileOperations.copy(source: source, destination: destination)
+    let attrs = try FileManager.default.attributesOfItem(atPath: destination.path)
+    XCTAssertEqual(attrs[.modificationDate] as? Date, date)
+    XCTAssertEqual((attrs[.posixPermissions] as? NSNumber)?.intValue, 0o750)
+    let dangling = root.appendingPathComponent("dangling")
+    try FileManager.default.createSymbolicLink(atPath: dangling.path, withDestinationPath: "missing")
+    XCTAssertThrowsError(try DiskKitFileOperations.requireNewDestination(dangling))
+    XCTAssertThrowsError(try DiskKitFileOperations.copy(source: source, destination: dangling))
+    XCTAssertEqual(try FileManager.default.destinationOfSymbolicLink(atPath: dangling.path), "missing")
+  }
+
   @objc func testVolumeRenameLabels() throws {
     try DiskKitFileOperations.validateVolumeName("NEW_USB", fileSystem: "exfat")
     try DiskKitFileOperations.validateVolumeName("USB", fileSystem: "msdos")
@@ -213,7 +279,7 @@ final class FileOperationsTests: XCTestCase {
 
 let suite = XCTestSuite(forTestCaseClass: FileOperationsTests.self)
 suite.run()
-guard let run = suite.testRun, run.executionCount == 11 else {
-  fatalError("Expected eleven native tests.")
+guard let run = suite.testRun, run.executionCount == 14 else {
+  fatalError("Expected fourteen native tests.")
 }
 exit(run.totalFailureCount == 0 ? 0 : 1)

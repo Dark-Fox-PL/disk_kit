@@ -58,7 +58,7 @@ public class DiskKitMacosPlugin: NSObject, FlutterPlugin, FlutterStreamHandler {
   private var methods: FlutterMethodChannel?
   fileprivate var rawTargets = Set<String>()
   private var claimedRawTargets = Set<String>()
-  private let worker = DispatchQueue(label: "eu.byfox.disk_kit.fileOperations", qos: .userInitiated)
+  private let worker = DispatchQueue(label: "eu.byfox.disk_kit.fileOperations", qos: .userInitiated, attributes: .concurrent)
   // Reject overlapping native requests targeting the same whole disk.
   private var busyDisks = Set<String>()
 
@@ -454,12 +454,27 @@ public class DiskKitMacosPlugin: NSObject, FlutterPlugin, FlutterStreamHandler {
       // Validate once on the main thread, again immediately before file access.
       _ = try DiskKitFileOperations.relativeURL(relativePath, volume: volume)
       _ = try DiskKitFileOperations.absoluteURL(localPath)
-      task = {
+      task = { [weak self] in
+        // Preserve no-overwrite semantics even when the requested destination
+        // is a dangling link whose resolved target does not yet exist.
+        try DiskKitFileOperations.requireNewDestination(
+          method == "copyFromDisk" ? URL(fileURLWithPath: localPath)
+            : volume.appendingPathComponent(relativePath))
         let onDisk = try DiskKitFileOperations.relativeURL(relativePath, volume: volume)
         let local = try DiskKitFileOperations.absoluteURL(localPath)
         try DiskKitFileOperations.copy(
           source: method == "copyFromDisk" ? onDisk : local,
-          destination: method == "copyFromDisk" ? local : onDisk)
+          destination: method == "copyFromDisk" ? local : onDisk,
+          parallel: args["parallel"] as? Bool ?? true,
+          progress: { [weak self] path, bytes, completed in
+            guard let operationId = args["operationId"] as? String else { return }
+            DispatchQueue.main.async {
+              self?.methods?.invokeMethod("fileCopyProgress", arguments: [
+                "operationId": operationId, "path": path, "bytes": bytes,
+                "completed": completed,
+              ])
+            }
+          })
       }
     } else {
       guard let id = info["id"] as? String, let fs = args["fileSystem"] as? String,

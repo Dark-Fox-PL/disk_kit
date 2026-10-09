@@ -1,5 +1,8 @@
 import 'package:plugin_platform_interface/plugin_platform_interface.dart';
 
+import 'src/file_copy_progress.dart';
+export 'src/file_copy_progress.dart';
+
 import 'src/disk_info.dart';
 import 'src/disk_format.dart';
 import 'src/media_operation_progress.dart';
@@ -70,6 +73,8 @@ abstract class DiskKitPlatform extends PlatformInterface {
     String diskId, {
     required String relativePath,
     required String destinationPath,
+    bool parallel = true,
+    FileCopyProgressCallback? onProgress,
   }) async =>
       throw _unsupported();
 
@@ -80,6 +85,8 @@ abstract class DiskKitPlatform extends PlatformInterface {
   Future<void> copyToDisk(
     String diskId, {
     required String sourcePath,
+    bool parallel = true,
+    FileCopyProgressCallback? onProgress,
     required String relativePath,
   }) async =>
       throw _unsupported();
