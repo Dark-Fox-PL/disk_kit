@@ -34,7 +34,7 @@ Or add the package to your app's `pubspec.yaml`:
 
 ```yaml
 dependencies:
-  disk_kit: ^1.1.1
+  disk_kit: ^1.2.0
 ```
 
 Import `package:disk_kit/disk_kit.dart`. The macOS implementation is installed and registered automatically; applications do not need to add `disk_kit_macos` or `disk_kit_platform_interface` directly.
@@ -84,6 +84,10 @@ await kit.copyFromDisk(
   volume.id,
   relativePath: 'Documents',
   destinationPath: '/Users/you/Desktop/Documents-backup',
+  parallel: true, // Default; at most four concurrent file copies.
+  onProgress: (FileCopyProgress event) {
+    print('${event.completed ? "copied" : "copying"}: ${event.path}; ${event.bytes} bytes');
+  },
 );
 
 await kit.copyToDisk(
@@ -95,7 +99,35 @@ await kit.copyToDisk(
 
 Local paths must be absolute; volume paths must be relative to the volume's mount point. The destination must not exist and its parent directory must exist. Directory copies are recursive. `.` selects the volume root; protected system metadata may prevent copying an entire root. Prefer explicitly selected user directories.
 
-Traversal outside the volume is rejected, including paths that resolve through a symlink to outside it. Symlinks inside copied directories are preserved. Copying between filesystems may fail for unsupported names, large files, symlinks, or metadata. A failed copy can leave partial destination data. These ordinary file-copy methods have no progress reporting, cancellation, checksum verification, merging, or overwriting. Media operations below have their own progress and verification options.
+Traversal outside the volume is rejected, including paths that resolve through a symlink to outside it. Symlinks inside copied directories are preserved. Copying between filesystems may fail for unsupported names, large files, symlinks, or metadata. A failed copy can leave partial destination data. Both methods accept `parallel: true` (the default) and an optional
+`onProgress: (FileCopyProgress event) { ... }` callback. Directory copies run
+at most four independent file copies at once; `parallel: false` limits this to
+one. Work runs outside the main thread. The containing disk remains exclusively
+leased until all workers have finished, including after a failure; independent
+disks can operate concurrently. Directory metadata is applied after copying
+children and nested symlinks are preserved. Failed copies retain partial output.
+Speed depends on the media; parallel I/O is not guaranteed to outperform serial
+I/O on every drive.
+
+Events report `path` (the absolute source path), `bytes` (the file size), and
+`completed`. A start event does not count its bytes as copied. Completion events
+are emitted only after that file has copied successfully; directory metadata or
+other files can still fail, so always await the operation future. These are
+file-boundary events, with no chunk progress, cancellation, checksum verification,
+merging, or overwriting. Media operations below have their own progress and verification options.
+
+### Migration from 1.1.x
+
+Application calls using `DiskKit.copyFromDisk` and `DiskKit.copyToDisk` remain
+valid. Both methods now use `parallel: true` by default. Pass `parallel: false`
+to use one native file worker; the returned future remains asynchronous.
+
+This release requires `disk_kit_macos` 1.2.0 and
+`disk_kit_platform_interface` 2.0.0. Custom platform implementations and mocks
+that override copying must add `bool parallel = true` and
+`FileCopyProgressCallback? onProgress` to both signatures. Existing callers do
+not need to supply either option. See the
+[platform migration guide](https://github.com/Dark-Fox-PL/disk_kit/blob/main/packages/disk_kit_platform_interface/README.md).
 
 ## Mounting and formatting
 
@@ -172,7 +204,7 @@ filesystem tools; the core DiskKit packages do not depend on it.
 
 ```yaml
 dependencies:
-  disk_kit: ^1.1.1
+  disk_kit: ^1.2.0
   disk_kit_macos_extensions: ^0.1.0
 ```
 
@@ -327,7 +359,18 @@ The example displays connected external devices and exposes all operations. See 
 
 Source: [GitHub](https://github.com/Dark-Fox-PL/disk_kit). Bugs and proposals: [issues](https://github.com/Dark-Fox-PL/disk_kit/issues).
 
-## Validation of 1.0.0
+## Validation of 1.2.0
+
+Flutter analysis, the three core Dart test suites, both example widget suites,
+and native filesystem tests pass with the local workspace. The macOS consumer
+application builds and starts with Swift Package Manager on Flutter 3.47.5.
+New nondestructive tests cover bounded/serial copies, per-file events, callback
+cleanup, byte-for-byte results, directory metadata, nested symlinks, failure
+retention, and existing/dangling destinations. No real disk was formatted for
+this release. Performance depends on the drive and file mix; bounded parallel
+I/O is not a guarantee of higher throughput on all media.
+
+## Historical validation of 1.0.0
 
 Unit tests, both example widget suites, and native discovery integration checks
 pass with CocoaPods and Swift Package Manager on Flutter 3.47.5. An explicitly

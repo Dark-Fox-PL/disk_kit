@@ -15,3 +15,23 @@ Publisher: [darkfox.pl](https://pub.dev/publishers/darkfox.pl).
 ## Installation media contract
 
 The interface includes `writeImage`, `createWindowsInstaller`, and `createMacOSInstaller`, each returning `Future<void>`. Optional `MediaProgressCallback` receives typed `MediaOperationProgress` with a `MediaOperationStage` and nullable stage byte counters. Existing platform implementations inherit unsupported defaults for these methods. Callers must confirm whole-disk erasure; boot compatibility depends on the source and destination computer.
+
+## Copy contract and migration to 2.0.0
+
+`copyFromDisk` and `copyToDisk` return `Future<void>` and now accept optional
+named `bool parallel = true` and `FileCopyProgressCallback? onProgress`.
+This is a breaking signature change for platform implementations and mocks
+that override these methods; add both named parameters even if a platform
+cannot yet implement parallel copying or progress.
+
+`FileCopyProgress` contains the absolute source `path`, file-size `bytes`, and
+`completed`. Start events (`completed: false`) must not be counted as copied
+bytes. A completion event reports one successful file copy, not success of the
+entire operation; callers must await the future. Callbacks can arrive out of
+order across files under parallel I/O. These events provide no chunk progress,
+in-flight cancellation or checksum verification. Partial destinations must be
+retained on failure; no merge or overwrite is allowed.
+
+The macOS implementation defaults to at most four workers per copy. Disabling
+parallel I/O limits it to one worker while leaving the future asynchronous.
+Existing application calls through the public `disk_kit` API remain valid.

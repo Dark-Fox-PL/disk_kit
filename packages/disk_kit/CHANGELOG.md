@@ -1,3 +1,10 @@
+## 1.2.0
+
+- Add `parallel` (default `true`) and optional `FileCopyProgressCallback` to both file-copy methods. Existing application calls remain valid.
+- Export `FileCopyProgress` with absolute source path, file size and start/completion status. File-level events do not provide chunk progress or cancellation.
+- Require platform interface 2.0.0 and macOS implementation 1.2.0; custom platform implementations must update their overridden copy signatures.
+- Document bounded parallel copying, measured progress, metadata preservation, failure handling and migration requirements.
+
 ## 1.1.1
 
 - Document and link the optional `disk_kit_macos_extensions` package on pub.dev, including explicit installation and import examples.

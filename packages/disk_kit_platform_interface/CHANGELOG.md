@@ -1,3 +1,9 @@
+## 2.0.0
+
+- Add `FileCopyProgress` and `FileCopyProgressCallback` for file-boundary telemetry.
+- **Breaking for platform implementers:** `copyFromDisk` and `copyToDisk` now accept optional named `bool parallel = true` and `FileCopyProgressCallback? onProgress`. Implementations and test doubles overriding these methods must add both parameters.
+- Existing application calls through `DiskKit` remain source-compatible. Unsupported platform defaults are retained.
+
 ## 1.1.0
 
 - Add `apfsCaseSensitive`, `hfsPlusNonJournaled`, `hfsPlusCaseSensitive`, and `hfsPlusCaseSensitiveJournaled`, plus the `requiresGpt` getter. Preserve the existing `hfsPlus` meaning and enum indexes.

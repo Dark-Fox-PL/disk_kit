@@ -1,3 +1,11 @@
+## 1.2.0
+
+- Copy directories with at most four concurrent file workers by default; `parallel: false` uses one worker. Run independent disk operations on a concurrent background queue while preserving per-disk exclusion.
+- Report file start/completion through operation-correlated `fileCopyProgress` method-channel events; remove callbacks when the operation future finishes.
+- Drain active workers before returning errors, retain partial output, preserve nested symlinks, and apply directory metadata after descendants.
+- Reject existing copy destinations, including dangling symlinks. Copies still never merge or overwrite and have no chunk progress, in-flight cancellation or checksum verification.
+- Require platform interface 2.0.0; extend native, transport and public example tests without formatting real disks.
+
 ## 1.1.0
 
 - Map the additional APFS/HFS+ variants to native diskutil formats and reject MBR for both APFS variants.
