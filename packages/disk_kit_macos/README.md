@@ -18,7 +18,7 @@ The entire operation can still fail on another file or directory metadata, so
 always await its future. There is no chunk progress, in-flight cancellation,
 merging, overwriting or checksum verification. Partial output is retained on
 failure. Callback errors are reported through Flutter without interrupting
-native copying. Version 1.2.1 requires platform interface 2.0.0.
+native copying. Version 1.2.2 requires platform interface 2.0.0.
 
 See the [public API guide](https://github.com/Dark-Fox-PL/disk_kit/blob/main/packages/disk_kit/README.md) and the [example testing guide](https://github.com/Dark-Fox-PL/disk_kit/blob/main/packages/disk_kit_macos/example/README.md).
 
@@ -26,7 +26,7 @@ See the [public API guide](https://github.com/Dark-Fox-PL/disk_kit/blob/main/pac
 
 `writeImage` writes uncompressed IMG/hybrid ISO to a raw external whole disk, unmounting and claiming it through Disk Arbitration. A mount approval callback blocks remounting while it writes. Raw writing and read-back verification stream through native file descriptors. When access requires authorization, Authorization Services and `authopen` transfer only an existing device descriptor over a Unix socket. There is no separate privileged raw writer. Fresh IOKit registry IDs identify the current attachment.
 
-`createWindowsInstaller` mounts ISO read-only through `hdiutil`, preflights the file tree, optionally splits an oversized installation WIM with caller-installed `wimlib-imagex`, and copies to MBR/FAT32 for UEFI. Ordinary copies are verified byte-for-byte when requested. Legacy BIOS and oversized ESD are unsupported.
+`createWindowsInstaller` mounts ISO read-only through `hdiutil`, preflights the file tree, optionally splits an oversized installation WIM with caller-supplied (including app-bundled) `wimlib-imagex`, and copies to MBR/FAT32 for UEFI. Ordinary copies are verified byte-for-byte when requested. Legacy BIOS and oversized ESD are unsupported.
 
 `createMacOSInstaller` requires a full Apple installer app, verifies Apple signatures, and uses `createinstallmedia` with administrator authorization through AppleScript. Its phase telemetry uses an exclusively created root-owned temporary directory. It does not accept macOS ISO/DMG containers. The authorization prompt precedes formatting. Apple's tool has indeterminate progress and controls validation.
 
@@ -45,3 +45,5 @@ Publisher: [darkfox.pl](https://pub.dev/publishers/darkfox.pl).
 The package supports CocoaPods and Swift Package Manager. Its SwiftPM product is `disk-kit-macos`; the target imports `FlutterFramework` and links Disk Arbitration, IOKit, and Security. Current SwiftPM builds and native channel tests were verified using Flutter 3.47.5. CocoaPods remains available for applications using older supported Flutter versions.
 
 The manifest follows the [official Flutter plugin guide](https://docs.flutter.dev/packages-and-plugins/swift-package-manager/for-plugin-authors). Flutter generates the `FlutterFramework` dependency while integrating the consuming application; running `swift build` directly inside the published plugin is not the application integration test.
+
+Pass an app-bundled tool’s absolute path using `wimlibPath`; no Homebrew installation is required when it is supplied. The consuming app owns tool licensing, source redistribution and architecture compatibility. Dependency-check failures include `phase: dependency_check`, `targetModified: false`, `dependency` and `searchedPaths`, and happen before disk erasure.

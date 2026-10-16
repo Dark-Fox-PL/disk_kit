@@ -437,14 +437,26 @@ enum DiskKitMediaOperations {
 
   static func wimlib(_ path: String?) throws -> String {
     let candidates = path.map { [$0] } ?? ["/opt/homebrew/bin/wimlib-imagex", "/usr/local/bin/wimlib-imagex"]
-    for candidate in candidates {
-      let resolved = try DiskKitFileOperations.absoluteURL(candidate)
-      if FileManager.default.isExecutableFile(atPath: resolved.path) {
-        _ = try run(resolved.path, ["--version"], code: "dependency_missing")
-        return resolved.path
+    do {
+      for candidate in candidates {
+        let resolved = try DiskKitFileOperations.absoluteURL(candidate)
+        if FileManager.default.isExecutableFile(atPath: resolved.path) {
+          _ = try run(resolved.path, ["--version"], code: "dependency_missing")
+          return resolved.path
+        }
       }
+      throw DiskKitNativeError(code: "dependency_missing", message: "Supply a bundled wimlib-imagex through wimlibPath or install wimlib (brew install wimlib) before preparing this oversized WIM.")
+    } catch {
+      var error = error as? DiskKitNativeError ?? DiskKitNativeError(
+        code: "dependency_missing", message: "The wimlib-imagex executable could not be started.",
+        details: ["reason": String(describing: error)])
+      // This helper is called only during Windows preparation, before format.
+      error.details["phase"] = "dependency_check"
+      error.details["targetModified"] = false
+      error.details["dependency"] = "wimlib-imagex"
+      error.details["searchedPaths"] = candidates
+      throw error
     }
-    throw DiskKitNativeError(code: "dependency_missing", message: "Install wimlib (brew install wimlib) or supply wimlibPath before preparing this oversized WIM.")
   }
 
   static func format(_ target: Target, fs: String, name: String, scheme: String = "gpt", progress: Progress) throws -> URL {

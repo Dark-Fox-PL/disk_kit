@@ -1,3 +1,9 @@
+## 1.2.2
+
+- Document bundled `wimlib-imagex` integration through the existing `wimlibPath` argument; no runtime download or public API change.
+- Report missing or nonworking Windows WIM tools with `phase: dependency_check`, `targetModified: false`, dependency name and searched paths. These checks run before disk erasure.
+- Require macOS implementation 1.2.2; platform interface remains 2.0.0.
+
 ## 1.2.1
 
 - Require macOS implementation 1.2.1, which preserves literal AppleDouble `._` companion files in serial and parallel recursive copies.

@@ -1,3 +1,9 @@
+## 1.2.2
+
+- Document bundled `wimlib-imagex` integration through the existing `wimlibPath` argument; no runtime download or public API change.
+- Report missing or nonworking Windows WIM tools with `phase: dependency_check`, `targetModified: false`, dependency name and searched paths. These checks run before disk erasure.
+- Require macOS implementation 1.2.2; platform interface remains 2.0.0.
+
 ## 1.2.1
 
 - Preserve AppleDouble `._` companion files during recursive copies. Use POSIX directory enumeration because Foundation silently hides recognized companions, causing literal backup inventories to lose files even when copy calls succeed.

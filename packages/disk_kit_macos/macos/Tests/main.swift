@@ -264,6 +264,29 @@ final class FileOperationsTests: XCTestCase {
     XCTAssertThrowsError(try DiskKitMediaOperations.wimlib(root.appendingPathComponent("missing").path))
   }
 
+  @objc func testBundledWimlibAndPreEraseDependencyDiagnostics() throws {
+    let tool = root.appendingPathComponent("bundled tools/wimlib-imagex")
+    try FileManager.default.createDirectory(at: tool.deletingLastPathComponent(), withIntermediateDirectories: true)
+    for script in [nil, "not an executable", "#!/bin/sh\nexit 1\n", "#!/bin/sh\necho 'wimlib-imagex fixture'\n"] as [String?] {
+      if let script {
+        try Data(script.utf8).write(to: tool)
+        try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: tool.path)
+      }
+      if script?.contains("echo") == true {
+        XCTAssertEqual(try DiskKitMediaOperations.wimlib(tool.path), tool.path)
+      } else {
+        XCTAssertThrowsError(try DiskKitMediaOperations.wimlib(tool.path)) { error in
+          let native = error as? DiskKitNativeError
+          XCTAssertEqual(native?.code, "dependency_missing")
+          XCTAssertEqual(native?.details["targetModified"] as? Bool, false)
+          XCTAssertEqual(native?.details["phase"] as? String, "dependency_check")
+          XCTAssertEqual(native?.details["dependency"] as? String, "wimlib-imagex")
+          XCTAssertEqual(native?.details["searchedPaths"] as? [String], [tool.path])
+        }
+      }
+    }
+  }
+
   @objc func testSocketDescriptorTransfer() throws {
     let file = root.appendingPathComponent("descriptor.txt")
     try Data("native descriptor".utf8).write(to: file)
@@ -304,7 +327,7 @@ final class FileOperationsTests: XCTestCase {
 
 let suite = XCTestSuite(forTestCaseClass: FileOperationsTests.self)
 suite.run()
-guard let run = suite.testRun, run.executionCount == 15 else {
-  fatalError("Expected fifteen native tests.")
+guard let run = suite.testRun, run.executionCount == 16 else {
+  fatalError("Expected sixteen native tests.")
 }
 exit(run.totalFailureCount == 0 ? 0 : 1)

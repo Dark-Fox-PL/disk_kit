@@ -12,7 +12,7 @@ DiskKit 1.0 provides disk operations and installation-media preparation. The pac
 - Mount, unmount, unmount all volumes on a disk, eject, and rename volumes.
 - Copy files and directories from a mounted volume or onto it.
 - Write uncompressed IMG / USB-compatible hybrid ISO images, with optional read-back verification.
-- Create Windows UEFI installers from ISO, including oversized WIM splitting through caller-installed wimlib.
+- Create Windows UEFI installers from ISO, including oversized WIM splitting through caller-supplied or installed wimlib.
 - Create macOS installation media from a complete Apple installer app.
 - Format an external volume or an entire external disk as exFAT, FAT32, APFS, or HFS+, including case-sensitive APFS and journaled/non-journaled HFS+ variants. Whole-disk formatting supports GPT or MBR; both APFS variants require GPT.
 
@@ -34,7 +34,7 @@ Or add the package to your app's `pubspec.yaml`:
 
 ```yaml
 dependencies:
-  disk_kit: ^1.2.1
+  disk_kit: ^1.2.2
 ```
 
 Import `package:disk_kit/disk_kit.dart`. The macOS implementation is installed and registered automatically; applications do not need to add `disk_kit_macos` or `disk_kit_platform_interface` directly.
@@ -129,7 +129,7 @@ Application calls using `DiskKit.copyFromDisk` and `DiskKit.copyToDisk` remain
 valid. Both methods now use `parallel: true` by default. Pass `parallel: false`
 to use one native file worker; the returned future remains asynchronous.
 
-This release requires `disk_kit_macos` 1.2.1 and
+This release requires `disk_kit_macos` 1.2.2 and
 `disk_kit_platform_interface` 2.0.0. Custom platform implementations and mocks
 that override copying must add `bool parallel = true` and
 `FileCopyProgressCallback? onProgress` to both signatures. Existing callers do
@@ -211,7 +211,7 @@ filesystem tools; the core DiskKit packages do not depend on it.
 
 ```yaml
 dependencies:
-  disk_kit: ^1.2.1
+  disk_kit: ^1.2.2
   disk_kit_macos_extensions: ^0.1.0
 ```
 
@@ -301,7 +301,7 @@ Disk Arbitration unmounts all volumes without force, claims the disk, and blocks
 
 A genuine Windows setup ISO must contain `sources/boot.wim`, installation WIM/ESD/SWM files, and a recognized EFI bootloader. The plugin mounts the ISO read-only, checks FAT32 filename and size compatibility, then copies into a freshly formatted MBR/FAT32 volume. Target boot architecture and Secure Boot trust depend on the chosen ISO and destination firmware. See [Microsoft's USB preparation guide](https://learn.microsoft.com/en-us/windows-hardware/manufacture/desktop/install-windows-from-a-usb-flash-drive?view=windows-11).
 
-FAT32's maximum file size is 4,294,967,295 bytes. Oversized `sources/install.wim` is split into `install.swm`, `install2.swm`, etc. using **wimlib-imagex**, which the consuming application/user must install or supply; DiskKit does not download it. Typical developer setup: `brew install wimlib`. Custom `wimlibPath` executables are run with the application's privileges, never as administrator. Splitting happens **before disk erasure** and requires temporary free space on the Mac. A WIM resource too large to split below FAT32's limit is rejected. Oversized ESD and other oversized files are rejected before erasure.
+FAT32's maximum file size is 4,294,967,295 bytes. Oversized `sources/install.wim` is split into `install.swm`, `install2.swm`, etc. using **wimlib-imagex**, which the consuming application/user must install or supply; DiskKit does not download it. Typical developer setup: `brew install wimlib`. Applications may bundle an executable for their supported architectures and pass its absolute resource path as `wimlibPath`, without requiring Homebrew on end-user machines. Include the tool’s redistribution licenses and corresponding source/build instructions in the distributed app. DiskKit does not include or install the executable. Missing or nonworking tool errors include `phase: dependency_check`, `targetModified: false`, `dependency: wimlib-imagex` and `searchedPaths`; these checks happen before formatting, so this failure does not imply a partially written target. Custom `wimlibPath` executables are run with the application's privileges, never as administrator. Splitting happens **before disk erasure** and requires temporary free space on the Mac. A WIM resource too large to split below FAT32's limit is rejected. Oversized ESD and other oversized files are rejected before erasure.
 
 Verification compares all copied files byte-for-byte. For a split WIM it additionally runs `wimlib-imagex verify` against the temporary parts before erasure, then compares each copied part. This verifies data, not a real boot or Windows installation. See [wimlib](https://github.com/ebiggers/wimlib).
 
@@ -366,7 +366,15 @@ The example displays connected external devices and exposes all operations. See 
 
 Source: [GitHub](https://github.com/Dark-Fox-PL/disk_kit). Bugs and proposals: [issues](https://github.com/Dark-Fox-PL/disk_kit/issues).
 
-## Validation of 1.2.1
+## Validation of 1.2.2
+
+Flutter analysis, 21 core Dart tests and 16 native tests pass. New native checks
+cover an app-bundled tool path with spaces, a missing tool, an invalid executable
+and a failing version check, including structured pre-erase diagnostics. A macOS
+consumer release app builds with SwiftPM and a universal bundled wimlib tool.
+These checks do not erase or write a physical disk.
+
+## Historical validation of 1.2.1
 
 Flutter analysis, the three core Dart test suites, both example widget suites,
 and native filesystem tests pass with the local workspace. The macOS consumer
