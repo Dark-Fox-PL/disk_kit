@@ -150,6 +150,56 @@ final class FileOperationsTests: XCTestCase {
     }
   }
 
+  @objc func testLiteralCompanionCopiesDoNotReserializeQuarantine() throws {
+    let source = root.appendingPathComponent("quarantined-source")
+    let directory = source.appendingPathComponent("folder")
+    try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+    let main = source.appendingPathComponent("image.png")
+    let payload = Data(repeating: 0xA5, count: 2 * 1024 * 1024 + 17)
+    try payload.write(to: main)
+    let quarantine = Data("0081;65000000;VulpShift;".utf8)
+    var companions: [String: Data] = [:]
+    for item in [main, directory] {
+      XCTAssertEqual(quarantine.withUnsafeBytes {
+        setxattr(item.path, "com.apple.quarantine", $0.baseAddress, $0.count, 0, 0)
+      }, 0)
+      let sidecar = source.appendingPathComponent("._" + item.lastPathComponent)
+      XCTAssertEqual(copyfile(item.path, sidecar.path, nil,
+        copyfile_flags_t(COPYFILE_XATTR | COPYFILE_PACK | COPYFILE_EXCL)), 0)
+      companions[sidecar.lastPathComponent] = try Data(contentsOf: sidecar)
+    }
+    for parallel in [false, true] {
+      for recursive in [false, true] {
+        let destination = root.appendingPathComponent("restore-\(parallel)-\(recursive)")
+        if recursive {
+          try DiskKitFileOperations.copy(source: source, destination: destination, parallel: parallel)
+        } else {
+          try FileManager.default.createDirectory(at: destination, withIntermediateDirectories: false)
+          // The app restores top-level paths as separate native requests,
+          // with literal companions sorted before their associated files.
+          for child in try DiskKitFileOperations.directoryEntries(source).sorted(by: { $0.path < $1.path }) {
+            try DiskKitFileOperations.copy(source: child,
+              destination: destination.appendingPathComponent(child.lastPathComponent), parallel: parallel)
+          }
+        }
+        for (name, expected) in companions {
+          XCTAssertEqual(try Data(contentsOf: destination.appendingPathComponent(name)), expected)
+        }
+        XCTAssertEqual(try Data(contentsOf: destination.appendingPathComponent("image.png")), payload)
+        for name in ["image.png", "folder"] {
+          // Literal metadata is already in the companion. Applying quarantine
+          // to the main object can rewrite/remove that companion on FAT/exFAT.
+          XCTAssertEqual(getxattr(destination.appendingPathComponent(name).path,
+            "com.apple.quarantine", nil, 0, 0, 0), -1)
+          XCTAssertEqual(errno, ENOATTR)
+        }
+      }
+    }
+    for (name, expected) in companions {
+      XCTAssertEqual(try Data(contentsOf: source.appendingPathComponent(name)), expected)
+    }
+  }
+
   @objc func testVolumeRenameLabels() throws {
     try DiskKitFileOperations.validateVolumeName("NEW_USB", fileSystem: "exfat")
     try DiskKitFileOperations.validateVolumeName("USB", fileSystem: "msdos")
@@ -327,7 +377,7 @@ final class FileOperationsTests: XCTestCase {
 
 let suite = XCTestSuite(forTestCaseClass: FileOperationsTests.self)
 suite.run()
-guard let run = suite.testRun, run.executionCount == 16 else {
-  fatalError("Expected sixteen native tests.")
+guard let run = suite.testRun, run.executionCount == 17 else {
+  fatalError("Expected seventeen native tests.")
 }
 exit(run.totalFailureCount == 0 ? 0 : 1)

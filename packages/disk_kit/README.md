@@ -34,7 +34,7 @@ Or add the package to your app's `pubspec.yaml`:
 
 ```yaml
 dependencies:
-  disk_kit: ^1.2.2
+  disk_kit: ^1.2.3
 ```
 
 Import `package:disk_kit/disk_kit.dart`. The macOS implementation is installed and registered automatically; applications do not need to add `disk_kit_macos` or `disk_kit_platform_interface` directly.
@@ -123,13 +123,20 @@ destination sidecar. Completion events also require the copied file to exist
 and match its expected size; applications should still verify checksums before
 erasing source data.
 
+Version 1.2.3 copies literal AppleDouble pairs using bounded POSIX data streams
+and POSIX permissions/timestamps. It avoids `copyfile` even for data-only copies,
+since that function can still apply quarantine metadata and rewrite/remove the
+literal companion on filesystems without native xattrs. Ordinary unpaired files
+retain native metadata copying. Companion files remain part of measured copy
+progress and content verification; they are not excluded.
+
 ### Migration from 1.1.x
 
 Application calls using `DiskKit.copyFromDisk` and `DiskKit.copyToDisk` remain
 valid. Both methods now use `parallel: true` by default. Pass `parallel: false`
 to use one native file worker; the returned future remains asynchronous.
 
-This release requires `disk_kit_macos` 1.2.2 and
+This release requires `disk_kit_macos` 1.2.3 and
 `disk_kit_platform_interface` 2.0.0. Custom platform implementations and mocks
 that override copying must add `bool parallel = true` and
 `FileCopyProgressCallback? onProgress` to both signatures. Existing callers do
@@ -211,7 +218,7 @@ filesystem tools; the core DiskKit packages do not depend on it.
 
 ```yaml
 dependencies:
-  disk_kit: ^1.2.2
+  disk_kit: ^1.2.3
   disk_kit_macos_extensions: ^0.1.0
 ```
 
@@ -366,7 +373,16 @@ The example displays connected external devices and exposes all operations. See 
 
 Source: [GitHub](https://github.com/Dark-Fox-PL/disk_kit). Bugs and proposals: [issues](https://github.com/Dark-Fox-PL/disk_kit/issues).
 
-## Validation of 1.2.2
+## Validation of 1.2.3
+
+Flutter analysis, the core Dart tests and 17 native filesystem tests pass.
+A regression reproduces unwanted quarantine serialization with 1.2.2 and passes
+with 1.2.3, checking literal companion bytes and absence of reserialized xattrs
+for files/directories, separate restore calls and serial/parallel recursive copies.
+The macOS consumer release app builds with SwiftPM. These checks use temporary
+local files; real FAT/exFAT device validation remains a separate hardware check.
+
+## Historical validation of 1.2.2
 
 Flutter analysis, 21 core Dart tests and 16 native tests pass. New native checks
 cover an app-bundled tool path with spaces, a missing tool, an invalid executable

@@ -23,14 +23,14 @@ packages:
       path: "../../disk_kit"
       relative: true
     source: path
-    version: "1.2.2"
+    version: "1.2.3"
   disk_kit_macos:
     dependency: "direct overridden"
     description:
       path: "../../disk_kit_macos"
       relative: true
     source: path
-    version: "1.2.2"
+    version: "1.2.3"
   disk_kit_macos_extensions:
     dependency: "direct main"
     description:

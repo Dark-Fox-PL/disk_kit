@@ -1,3 +1,10 @@
+## 1.2.3
+
+- Preserve literal AppleDouble `._` companion pairs without invoking system quarantine/xattr serialization. macOS `copyfile` can apply quarantine even with only `COPYFILE_DATA | COPYFILE_STAT`, potentially rewriting/removing a destination companion on FAT/exFAT.
+- Use bounded POSIX streaming plus permissions/timestamps for regular files with literal companions and the companions themselves; apply directory POSIX metadata without `copyfile` when a literal companion exists. Other copies retain native metadata handling.
+- Add regression coverage for quarantined file/directory companions, separate top-level restore calls, recursive serial/parallel copies and payloads spanning multiple stream buffers.
+- Require macOS implementation 1.2.3; public API and platform interface 2.0.0 remain unchanged.
+
 ## 1.2.2
 
 - Document bundled `wimlib-imagex` integration through the existing `wimlibPath` argument; no runtime download or public API change.

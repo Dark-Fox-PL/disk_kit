@@ -18,7 +18,7 @@ The entire operation can still fail on another file or directory metadata, so
 always await its future. There is no chunk progress, in-flight cancellation,
 merging, overwriting or checksum verification. Partial output is retained on
 failure. Callback errors are reported through Flutter without interrupting
-native copying. Version 1.2.2 requires platform interface 2.0.0.
+native copying. Version 1.2.3 requires platform interface 2.0.0.
 
 See the [public API guide](https://github.com/Dark-Fox-PL/disk_kit/blob/main/packages/disk_kit/README.md) and the [example testing guide](https://github.com/Dark-Fox-PL/disk_kit/blob/main/packages/disk_kit_macos/example/README.md).
 
@@ -47,3 +47,5 @@ The package supports CocoaPods and Swift Package Manager. Its SwiftPM product is
 The manifest follows the [official Flutter plugin guide](https://docs.flutter.dev/packages-and-plugins/swift-package-manager/for-plugin-authors). Flutter generates the `FlutterFramework` dependency while integrating the consuming application; running `swift build` directly inside the published plugin is not the application integration test.
 
 Pass an app-bundled tool’s absolute path using `wimlibPath`; no Homebrew installation is required when it is supplied. The consuming app owns tool licensing, source redistribution and architecture compatibility. Dependency-check failures include `phase: dependency_check`, `targetModified: false`, `dependency` and `searchedPaths`, and happen before disk erasure.
+
+Version 1.2.3 streams literal AppleDouble pairs with POSIX read/write and applies only POSIX permissions/timestamps, avoiding implicit quarantine serialization in `copyfile` that could rewrite/remove companion bytes on FAT/exFAT. Ordinary unpaired files still use native metadata copying.

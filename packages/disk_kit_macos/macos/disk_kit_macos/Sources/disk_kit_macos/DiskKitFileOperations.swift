@@ -81,6 +81,61 @@ enum DiskKitFileOperations {
     return (try? FileManager.default.attributesOfItem(atPath: companion.path)) != nil
   }
 
+  private static func posixError(_ path: String) -> NSError {
+    NSError(domain: NSPOSIXErrorDomain, code: Int(errno),
+      userInfo: [NSFilePathErrorKey: path])
+  }
+
+  private static func copyPOSIXStat(_ attributes: stat, to descriptor: Int32, path: String) throws {
+    // No xattr, ACL or quarantine calls: on FAT/exFAT these operate on ._ files.
+    guard fchmod(descriptor, attributes.st_mode & 0o777) == 0 else { throw posixError(path) }
+    var times = [
+      timeval(tv_sec: attributes.st_atimespec.tv_sec, tv_usec: Int32(attributes.st_atimespec.tv_nsec / 1000)),
+      timeval(tv_sec: attributes.st_mtimespec.tv_sec, tv_usec: Int32(attributes.st_mtimespec.tv_nsec / 1000)),
+    ]
+    guard futimes(descriptor, &times) == 0 else { throw posixError(path) }
+  }
+
+  /// copyfile(COPYFILE_DATA | COPYFILE_STAT) still applies quarantine metadata.
+  /// Stream literal companion pairs without invoking the AppleDouble machinery.
+  private static func copyLiteralFile(_ source: URL, _ destination: URL) throws {
+    let input = open(source.path, O_RDONLY | O_NOFOLLOW | O_CLOEXEC)
+    guard input >= 0 else { throw posixError(source.path) }
+    defer { close(input) }
+    var attributes = stat()
+    guard fstat(input, &attributes) == 0 else { throw posixError(source.path) }
+    guard attributes.st_mode & S_IFMT == S_IFREG else {
+      throw DiskKitNativeError(code: "io_failed", message: "The source file type changed.")
+    }
+    let output = open(destination.path, O_WRONLY | O_CREAT | O_EXCL | O_NOFOLLOW | O_CLOEXEC, 0o600)
+    guard output >= 0 else { throw posixError(destination.path) }
+    defer { close(output) }
+    let capacity = 1024 * 1024
+    let buffer = UnsafeMutableRawPointer.allocate(byteCount: capacity, alignment: 16)
+    defer { buffer.deallocate() }
+    while true {
+      let count = read(input, buffer, capacity)
+      if count == 0 { break }
+      if count < 0 {
+        if errno == EINTR { continue }
+        throw posixError(source.path)
+      }
+      var offset = 0
+      while offset < count {
+        let written = write(output, buffer.advanced(by: offset), count - offset)
+        if written < 0 {
+          if errno == EINTR { continue }
+          throw posixError(destination.path)
+        }
+        guard written > 0 else {
+          throw DiskKitNativeError(code: "io_failed", message: "The destination stopped accepting file data.")
+        }
+        offset += written
+      }
+    }
+    try copyPOSIXStat(attributes, to: output, path: destination.path)
+  }
+
   /// No merge or overwrite. Bounded file workers preserve directory metadata.
   static func copy(source: URL, destination: URL, parallel: Bool = true,
     progress: @escaping (String, Int64, Bool) -> Void = { _, _, _ in }) throws {
@@ -131,11 +186,7 @@ enum DiskKitFileOperations {
             progress(input.path, bytes, false)
             if attributes[.type] as? FileAttributeType == .typeRegular,
               input.lastPathComponent.hasPrefix("._") || hasLiteralCompanion(input) {
-              let flags = copyfile_flags_t(COPYFILE_DATA | COPYFILE_STAT | COPYFILE_EXCL | COPYFILE_NOFOLLOW)
-              if copyfile(input.path, output.path, nil, flags) != 0 {
-                throw NSError(domain: NSPOSIXErrorDomain, code: Int(errno),
-                  userInfo: [NSFilePathErrorKey: output.path])
-              }
+              try copyLiteralFile(input, output)
             } else {
               try FileManager.default.copyItem(at: input, to: output)
             }
@@ -156,8 +207,14 @@ enum DiskKitFileOperations {
     // Apply directory metadata after descendants, retaining nested symlinks and
     // FileManager file-copy behavior while permitting independent file I/O.
     for (input, output) in directories.reversed() {
-      let flags = copyfile_flags_t(hasLiteralCompanion(input) ? COPYFILE_STAT : COPYFILE_METADATA)
-      if copyfile(input.path, output.path, nil, flags) != 0 {
+      if hasLiteralCompanion(input) {
+        var attributes = stat()
+        guard lstat(input.path, &attributes) == 0 else { throw posixError(input.path) }
+        let descriptor = open(output.path, O_RDONLY | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC)
+        guard descriptor >= 0 else { throw posixError(output.path) }
+        defer { close(descriptor) }
+        try copyPOSIXStat(attributes, to: descriptor, path: output.path)
+      } else if copyfile(input.path, output.path, nil, copyfile_flags_t(COPYFILE_METADATA)) != 0 {
         throw NSError(domain: NSPOSIXErrorDomain, code: Int(errno),
           userInfo: [NSFilePathErrorKey: output.path])
       }
